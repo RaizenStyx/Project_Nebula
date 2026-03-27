@@ -12,6 +12,28 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChangedSignature, float, CurrentHealth, float, MaxHealth);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStaminaChangedSignature, float, CurrentStamina, float, MaxStamina);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAwakeTimerChangedSignature, float, CurrentAwakeTime);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelUpSignature, int32, NewLevel);
+
+
+// Defines the player's chosen Essence
+UENUM(BlueprintType)
+enum class EEssenceType : uint8
+{
+    None            UMETA(DisplayName = "None"),
+    Fighting        UMETA(DisplayName = "Fighting (Æsir's Eye)"),
+    Evasive         UMETA(DisplayName = "Evasive (The Void Flicker)"),
+    Survivability   UMETA(DisplayName = "Survivability (Stone Wall)")
+};
+
+UENUM(BlueprintType)
+enum class ENebulaStatType : uint8
+{
+    Prowess         UMETA(DisplayName = "Physical Prowess"),
+    Synchronization UMETA(DisplayName = "Synchronization"),
+    Agility         UMETA(DisplayName = "Agility"),
+    Fortitude       UMETA(DisplayName = "Fortitude"),
+    Vigor           UMETA(DisplayName = "Vigor")
+};
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_NEBULA_API UPlayerStatsComponent : public UActorComponent  
@@ -25,7 +47,9 @@ protected:
     virtual void BeginPlay() override;
 
 public:
+
     //virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+    
     // -------------------------------------------------------------------
     // PRIMARY ATTRIBUTES
     // -------------------------------------------------------------------
@@ -100,4 +124,63 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Nebula Stats|Combat")
     float CalculateOutgoingPhysicalDamage(float BaseWeaponDamage, ETechniqueStyle TechniqueStyle, EEnemyArchetype Archetype) const;
+
+
+
+
+    // -------------------------------------------------------------------
+    // PROGRESSION & XP
+    // -------------------------------------------------------------------
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
+    int32 MainLevel;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
+    float CurrentMainXP;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
+    float NextLevelMainXP;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
+    int32 ClassLevel;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
+    float CurrentClassXP;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
+    float NextLevelClassXP;
+
+    // Defines how XP is split. 0.0 = 100% Main / 0% Class. 0.5 = 50/50. 1.0 = 0% Main / 100% Class.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Progression")
+    float ClassXPSplitPercentage;
+
+    // Used for your future "System Status" screen UI
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
+    int32 UnspentStatPoints;
+
+    UPROPERTY(BlueprintAssignable, Category = "Nebula Stats|Events")
+    FOnLevelUpSignature OnMainLevelUp;
+
+    // The Essence chosen at the start of the game
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Progression")
+    EEssenceType PlayerEssence;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Progression")
+    ENebulaStatType StatType;
+
+    // Functions
+    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Methods")
+    void AddExperience(float RawXP);
+
+    UFUNCTION(BlueprintPure, Category = "Nebula Stats|Methods")
+    float CalculateRequiredXP(int32 TargetLevel) const;
+
+    // Handles the automatic +2/+1 stat distribution on level up
+    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Methods")
+    void AutoAllocateEssenceStats();
+
+    // Spends one unallocated point on the chosen stat. Returns true if successful.
+    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Methods")
+    bool SpendStatPoint(ENebulaStatType StatToUpgrade);
+
 };

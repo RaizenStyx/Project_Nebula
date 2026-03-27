@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
+#include "WeaponDataTypes.h"
+#include "Components/SphereComponent.h"
 #include "Project_NebulaCharacter.generated.h"
 
 class USpringArmComponent;
@@ -82,5 +84,33 @@ public:
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	// -------------------------------------------------------------------
+	// WEAPON SYSTEM
+	// -------------------------------------------------------------------
+
+	// The physical 3D model attached to your hand
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	UStaticMeshComponent* EquippedWeaponMesh;
+
+	// Slot to slot in your DT_WeaponList in the Blueprint Editor
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	UDataTable* WeaponDataTable;
+
+	// Stores the currently active stats (Damage, Technique, etc.)
+	UPROPERTY(BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	FWeaponInfo CurrentWeaponInfo;
+
+	// The invisible bubble that detects nearby interactables
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Interaction")
+	USphereComponent* InteractionSphere;
+
+	// Stores the object we are currently standing next to
+	UPROPERTY(BlueprintReadWrite, Category = "Nebula Interaction")
+	AActor* CurrentInteractable;
+
+	// The function your UI will call to swap weapons
+	UFUNCTION(BlueprintCallable, Category = "Nebula Combat|Methods")
+	void EquipWeaponFromRow(FName WeaponRowName);
 };
 

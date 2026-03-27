@@ -23,6 +23,19 @@ UPlayerStatsComponent::UPlayerStatsComponent()
 
     MaxAwakeTimerMinutes = 960.0f; // 16 Hours * 60 Mins
     CurrentAwakeTimerMinutes = MaxAwakeTimerMinutes;
+
+    // Initialize Progression
+    MainLevel = 1;
+    CurrentMainXP = 0.0f;
+    NextLevelMainXP = 100.0f; // Base requirement for Lv 1 -> 2 [cite: 122]
+
+    ClassLevel = 0; // Starts at 0 until unlocked at Main Level 25 [cite: 100]
+    CurrentClassXP = 0.0f;
+    NextLevelClassXP = 50.0f; // Class requires exactly 50% of Main Level XP [cite: 123]
+
+    ClassXPSplitPercentage = 0.5f; // Default to 50/50 split 
+    UnspentStatPoints = 0;
+
 }
 
 void UPlayerStatsComponent::BeginPlay()
@@ -82,7 +95,7 @@ void UPlayerStatsComponent::CalculateDerivedStats()
     // 3. Calculate Awake Timer from Vigor (+5 mins per point)
     // Base is 16 In-Game Hours (960 minutes)
     float BaseAwakeMinutes = 960.0f;
-    MaxAwakeTimerMinutes = BaseAwakeMinutes + (EffectiveVigor * 5.0f);    // FIXED: Removed stray [cite:163] artifact
+    MaxAwakeTimerMinutes = BaseAwakeMinutes + (EffectiveVigor * 5.0f);   
 
     // Safety clamp to ensure current values don't exceed new maximums if stats are recalculated mid-game
     CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, MaxHealth);
@@ -131,8 +144,15 @@ float UPlayerStatsComponent::CalculateOutgoingPhysicalDamage(float BaseWeaponDam
     {
 
     case ETechniqueStyle::RiverStyx:
-        // All-arounder style
-         TechniqueMultiplier = 1.4f; // This number will be fun to play with
+        // Against the Nulltype, this technique should be extra effective. 
+        if (TargetArchetype == EEnemyArchetype::NullType)
+        {
+            TechniqueMultiplier = 2.0f;
+        }
+        else // All-arounder style
+        {
+            TechniqueMultiplier = 1.4f; // This number will be fun to play with
+        }
          break;
 
 
@@ -146,7 +166,7 @@ float UPlayerStatsComponent::CalculateOutgoingPhysicalDamage(float BaseWeaponDam
 
 
     case ETechniqueStyle::GaleWind:
-        // Counters Hit-and-Run/Evasive types
+        // Counters Fighting types
         if (TargetArchetype == EEnemyArchetype::Fighting)
         {
             TechniqueMultiplier = 1.5f;
@@ -154,7 +174,7 @@ float UPlayerStatsComponent::CalculateOutgoingPhysicalDamage(float BaseWeaponDam
         break;
 
     case ETechniqueStyle::IronForm:
-        // Counters Turtle/Survivability types
+        // Counters Hit-and-Run/Evasive types
         if (TargetArchetype == EEnemyArchetype::Evasive)
         {
             TechniqueMultiplier = 1.5f;
@@ -163,7 +183,7 @@ float UPlayerStatsComponent::CalculateOutgoingPhysicalDamage(float BaseWeaponDam
 
     case ETechniqueStyle::None:
     default:
-        TechniqueMultiplier = 0.0f;   // If enemy is set to none, then it should be unbeatable
+        TechniqueMultiplier = 1.0f;   // If techique style is None, it is basic and does not do extra damage.
         break;
     }
 
@@ -180,4 +200,151 @@ float UPlayerStatsComponent::CalculateOutgoingPhysicalDamage(float BaseWeaponDam
     float TotalOutgoingDamage = (BaseWeaponDamage * (1.0f + ProwessBonusPercentage + PassiveBonusPercentage)) * TechniqueMultiplier;
 
     return TotalOutgoingDamage;
+}
+
+float UPlayerStatsComponent::CalculateRequiredXP(int32 TargetLevel) const
+{
+    // The base requirement for Level 1 -> 2 is 100 XP [cite: 122]
+    if (TargetLevel <= 1) return 100.0f;
+
+    float RequiredXP = 100.0f;
+
+    // Iteratively calculate the curve to avoid massive recursion overhead
+    for (int32 i = 2; i <= TargetLevel; ++i)
+    {
+        if (i <= 25)
+        {
+            RequiredXP *= 2.0f; // Tier 1 [cite: 123]
+        }
+        else if (i <= 50)
+        {
+            RequiredXP *= 3.0f; // Tier 2 [cite: 123]
+        }
+        else if (i <= 75)
+        {
+            RequiredXP *= 4.0f; // Tier 3 [cite: 123]
+        }
+        else
+        {
+            RequiredXP *= 5.0f; // Tier 4 [cite: 123]
+        }
+    }
+
+    return RequiredXP;
+}
+
+void UPlayerStatsComponent::AutoAllocateEssenceStats()
+{
+    // Apply the specific +2 Primary and +1 Secondary based on the chosen Essence
+    switch (PlayerEssence)
+    {
+    case EEssenceType::Fighting:
+        PhysicalProwess += 2.0f; // Primary [cite: 140]
+        Agility += 1.0f;         // Secondary [cite: 140]
+        break;
+
+    case EEssenceType::Evasive:
+        Agility += 2.0f;         // Primary [cite: 140]
+        Synchronization += 1.0f; // Secondary [cite: 141]
+        break;
+
+    case EEssenceType::Survivability:
+        Vigor += 2.0f;           // Primary [cite: 141]
+        Fortitude += 1.0f;       // Secondary [cite: 141]
+        break;
+
+    case EEssenceType::None:
+    default:
+        // If no essence is chosen, maybe they just get raw unspent points, or nothing happens
+        break;
+    }
+
+    // Recalculate derived stats (Health, Stamina, Awake Timer) because Fortitude or Vigor might have increased!
+    CalculateDerivedStats();
+}
+
+void UPlayerStatsComponent::AddExperience(float RawXP)
+{
+    // PLACEHOLDER: Future Area Level scaling math will go here!
+    float FinalXP = RawXP;
+
+    // Calculate the distribution 
+    float XPForClass = FinalXP * ClassXPSplitPercentage;
+    float XPForMain = FinalXP - XPForClass;
+
+    // Hard Cap Rule: Class Level cannot exceed Main Level 
+    // If we are capped (or haven't unlocked a class yet at Lv 0), redirect all XP to Main [cite: 125]
+    if (ClassLevel >= MainLevel || ClassLevel == 0)
+    {
+        XPForMain = FinalXP;
+        XPForClass = 0.0f;
+    }
+
+    CurrentMainXP += XPForMain;
+    CurrentClassXP += XPForClass;
+
+    // Check for Main Level Up
+    while (CurrentMainXP >= NextLevelMainXP)
+    {
+        CurrentMainXP -= NextLevelMainXP;
+        MainLevel++;
+        
+        // Grant the 2 Free Allocation points for the player to spend manually 
+        UnspentStatPoints += 2; 
+        
+        // Trigger the automatic +2/+1 Essence allocation
+        AutoAllocateEssenceStats();
+
+        NextLevelMainXP = CalculateRequiredXP(MainLevel);
+        
+        // Tell the UI we leveled up!
+        OnMainLevelUp.Broadcast(MainLevel);
+    }
+
+    // Check for Class Level Up
+    if (ClassLevel > 0)
+    {
+        while (CurrentClassXP >= NextLevelClassXP && ClassLevel < MainLevel)
+        {
+            CurrentClassXP -= NextLevelClassXP;
+            ClassLevel++;
+            // Class XP requirement is always exactly 50% of the Main Level requirement [cite: 123]
+            NextLevelClassXP = CalculateRequiredXP(ClassLevel) * 0.5f;
+        }
+    }
+}
+
+bool UPlayerStatsComponent::SpendStatPoint(ENebulaStatType StatToUpgrade)
+{
+    // Fail-safe: Don't do anything if they have no points
+    if (UnspentStatPoints <= 0)
+    {
+        return false;
+    }
+
+    // Add +1 to the requested stat
+    switch (StatToUpgrade)
+    {
+    case ENebulaStatType::Prowess:
+        PhysicalProwess += 1.0f;
+        break;
+    case ENebulaStatType::Synchronization:
+        Synchronization += 1.0f;
+        break;
+    case ENebulaStatType::Agility:
+        Agility += 1.0f;
+        break;
+    case ENebulaStatType::Fortitude:
+        Fortitude += 1.0f;
+        break;
+    case ENebulaStatType::Vigor:
+        Vigor += 1.0f;
+        break;
+    }
+
+    // Deduct the point and recalculate health/stamina
+    UnspentStatPoints -= 1;
+    CalculateDerivedStats();
+
+    return true;
 }

@@ -51,8 +51,27 @@ AProject_NebulaCharacter::AProject_NebulaCharacter()
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
 
+
+
+	InteractionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionSphere"));
+	InteractionSphere->SetupAttachment(RootComponent);
+	InteractionSphere->SetSphereRadius(150.0f); // Adjust this radius for how close they need to be
+	InteractionSphere->SetCollisionProfileName(TEXT("Trigger")); // Only overlaps, doesn't block movement
+
+
+
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+
+	// 1. Create the Weapon Mesh Component
+	EquippedWeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EquippedWeaponMesh"));
+
+	// 2. Attach it to your character skeleton's hand socket 
+	// (Make sure "WeaponSocket" exactly matches the socket name on your skeletal mesh!)
+	EquippedWeaponMesh->SetupAttachment(GetMesh(), FName("WeaponSocket"));
+
+	// Turn off collision so the weapon doesn't bump into the player's own capsule
+	EquippedWeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -161,5 +180,42 @@ void AProject_NebulaCharacter::DodgeOrCrouch(const FInputActionValue& Value)
 		{
 			Crouch();
 		}
+	}
+}
+
+void AProject_NebulaCharacter::EquipWeaponFromRow(FName WeaponRowName)
+{
+	// Fail-safe: Make sure the Data Table is actually assigned in the editor!
+	if (!WeaponDataTable)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WeaponDataTable is missing on the Character!"));
+		return;
+	}
+
+	// Search the Data Table for the exact Row Name
+	static const FString ContextString(TEXT("Weapon Equip Context"));
+	FWeaponInfo* FoundWeaponRow = WeaponDataTable->FindRow<FWeaponInfo>(WeaponRowName, ContextString);
+
+	if (FoundWeaponRow)
+	{
+		// 1. Overwrite our current stats with the new weapon's stats
+		CurrentWeaponInfo = *FoundWeaponRow;
+
+		// 2. Update the 3D model in the player's hand
+		if (CurrentWeaponInfo.VisualMesh)
+		{
+			EquippedWeaponMesh->SetStaticMesh(CurrentWeaponInfo.VisualMesh);
+		}
+		else
+		{
+			// If the DT has an empty mesh, clear the hand
+			EquippedWeaponMesh->SetStaticMesh(nullptr);
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Successfully equipped: %s"), *CurrentWeaponInfo.ItemName.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Could not find weapon row: %s"), *WeaponRowName.ToString());
 	}
 }
