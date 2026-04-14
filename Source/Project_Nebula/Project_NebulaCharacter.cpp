@@ -9,6 +9,7 @@
 #include "GameFramework/Controller.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "PlayerStatsComponent.h"
 #include "InputActionValue.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -158,7 +159,7 @@ void AProject_NebulaCharacter::LightAttack(const FInputActionValue& Value)
 {
 	// Future LitRPG damage scaling and animation triggers will go here.
 	// For now, print to screen so we know the button works.
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Light Attack Triggered!"));
+	//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Light Attack Triggered!"));
 }
 
 void AProject_NebulaCharacter::DodgeOrCrouch(const FInputActionValue& Value)
@@ -166,20 +167,40 @@ void AProject_NebulaCharacter::DodgeOrCrouch(const FInputActionValue& Value)
 	// Check if the character is currently moving faster than a near-stop
 	if (GetCharacterMovement()->Velocity.SizeSquared2D() > 100.f)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, TEXT("Dodge Roll Triggered!"));
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 
-		// Note: We will add the physical LaunchCharacter() or Root Motion Dodge Animation here later.
+		// Ensure we aren't already dodging so we can't spam it in the air
+		if (DodgeMontage && AnimInstance && !AnimInstance->Montage_IsPlaying(DodgeMontage))
+		{
+			// 1. Get Stats for Scaling
+			UPlayerStatsComponent* StatsComp = FindComponentByClass<UPlayerStatsComponent>();
+			float EffectiveAgility = StatsComp ? StatsComp->GetEffectiveStatValue(StatsComp->Agility) : 10.0f;
+
+			// 2. Play the Animation (Scaled by Agility)
+			float PlayRate = 1.0f + (EffectiveAgility * 0.002f);
+			PlayAnimMontage(DodgeMontage, PlayRate);
+
+			// 3. Calculate Launch Velocity
+			// Get the normal direction the player is currently moving
+			FVector DodgeDirection = GetCharacterMovement()->Velocity.GetSafeNormal2D();
+
+			// Base force of the dodge + Agility scaling (+10 units of force per effective point)
+			float BaseDodgeForce = 1500.0f;
+			float TotalDodgeForce = BaseDodgeForce + (EffectiveAgility * 10.0f);
+
+			FVector LaunchVelocity = DodgeDirection * TotalDodgeForce;
+
+			// 4. Launch the Character!
+			// The two 'true' booleans override current XY velocity so the dash feels snappy and immediate
+			LaunchCharacter(LaunchVelocity, true, false);
+
+			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Dodge Launched! Force: %f"), TotalDodgeForce));
+		}
 	}
 	else
 	{
-		if (bIsCrouched)
-		{
-			UnCrouch();
-		}
-		else
-		{
-			Crouch();
-		}
+		if (bIsCrouched) UnCrouch();
+		else Crouch();
 	}
 }
 
@@ -218,4 +239,30 @@ void AProject_NebulaCharacter::EquipWeaponFromRow(FName WeaponRowName)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Could not find weapon row: %s"), *WeaponRowName.ToString());
 	}
+}
+
+float AProject_NebulaCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	// 1. Check Invincibility (I-frames from dodging)
+	if (bIsInvincible)
+	{
+		return 0.0f;
+	}
+
+	// 2. Fetch the Stats Component
+	UPlayerStatsComponent* StatsComp = FindComponentByClass<UPlayerStatsComponent>();
+	if (StatsComp)
+	{
+		// 3. Apply Fortitude Reduction
+		float ActualDamage = StatsComp->CalculateIncomingPhysicalDamage(DamageAmount);
+
+		// 4. Apply the damage
+		StatsComp->ModifyHealth(-ActualDamage);
+
+		GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Took %f damage!"), ActualDamage));
+
+		return ActualDamage;
+	}
+
+	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }

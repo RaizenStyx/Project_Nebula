@@ -71,6 +71,9 @@ protected:
 
 	/** Called for context-sensitive dodge or crouch */
 	void DodgeOrCrouch(const FInputActionValue& Value);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animations")
+	UAnimMontage* DodgeMontage;
 			
 
 protected:
@@ -112,5 +115,13 @@ public:
 	// The function your UI will call to swap weapons
 	UFUNCTION(BlueprintCallable, Category = "Nebula Combat|Methods")
 	void EquipWeaponFromRow(FName WeaponRowName);
+
+
+
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+
+	// I-frame state flag
+	UPROPERTY(BlueprintReadOnly, Category = "Combat")
+	bool bIsInvincible = false;
 };
 

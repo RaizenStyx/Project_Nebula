@@ -4,11 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Interactable.h"
+#include "IGatherable.h"
 #include "AResourceNode.generated.h"
 
 UCLASS()
-class PROJECT_NEBULA_API AAResourceNode : public AActor, public IInteractable
+class PROJECT_NEBULA_API AAResourceNode : public AActor, public IIGatherable
 {
 	GENERATED_BODY()
 	

@@ -121,12 +121,11 @@ public:
     float GetEffectiveStatValue(float BaseStatValue) const;
 
     // Calculates outgoing damage based on Prowess and Weapon Stats
-
     UFUNCTION(BlueprintPure, Category = "Nebula Stats|Combat")
     float CalculateOutgoingPhysicalDamage(float BaseWeaponDamage, ETechniqueStyle TechniqueStyle, EEnemyArchetype Archetype) const;
 
-
-
+    UFUNCTION(BlueprintPure, Category = "Nebula Stats|Combat")
+    float CalculateIncomingPhysicalDamage(float BaseDamage) const;
 
     // -------------------------------------------------------------------
     // PROGRESSION & XP

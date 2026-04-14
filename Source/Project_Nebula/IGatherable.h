@@ -4,11 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "Interactable.generated.h"
+#include "IGatherable.generated.h"
 
 // This class does not need to be modified.
 UINTERFACE(MinimalAPI, Blueprintable)
-class UInteractable : public UInterface
+class UIGatherable : public UInterface
 {
 	GENERATED_BODY()
 };
@@ -16,13 +16,13 @@ class UInteractable : public UInterface
 /**
  * 
  */
-class PROJECT_NEBULA_API IInteractable
+class PROJECT_NEBULA_API IIGatherable
 {
 	GENERATED_BODY()
 
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
-    // For Proximity: Beds, NPCs, Loot (Fired by pressing the button near them)
-    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nebula Interaction")
-    void Interact(AActor* Interactor);
+	// For Impact: Trees, Rocks (Fired by your weapon's damage trace)
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nebula Interaction")
+	void Gather(AActor* Gatherer, float DamageAmount);
 };

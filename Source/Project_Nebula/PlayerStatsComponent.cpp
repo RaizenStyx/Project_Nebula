@@ -202,6 +202,16 @@ float UPlayerStatsComponent::CalculateOutgoingPhysicalDamage(float BaseWeaponDam
     return TotalOutgoingDamage;
 }
 
+float UPlayerStatsComponent::CalculateIncomingPhysicalDamage(float BaseDamage) const
+{
+    float EffectiveFortitude = GetEffectiveStatValue(Fortitude);
+
+    // Armor formula: 100 / (100 + Armor)
+    float DamageMultiplier = 100.0f / (100.0f + EffectiveFortitude);
+
+    return BaseDamage * DamageMultiplier;
+}
+
 float UPlayerStatsComponent::CalculateRequiredXP(int32 TargetLevel) const
 {
     // The base requirement for Level 1 -> 2 is 100 XP [cite: 122]
