@@ -9,6 +9,7 @@
 #include "Components/SphereComponent.h"
 #include "Project_NebulaCharacter.generated.h"
 
+class USkillManagerComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
@@ -37,6 +38,10 @@ class AProject_NebulaCharacter : public ACharacter
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* JumpAction;
+
+	// In your class definition:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Components, meta = (AllowPrivateAccess = "true"))
+	USkillManagerComponent* SkillManager;
 
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
@@ -74,6 +79,29 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animations")
 	UAnimMontage* DodgeMontage;
+
+
+	// --- INPUT ACTIONS ---
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* HotbarModifierAction; // The Left Bumper
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SlotFaceTopAction; // Y / Triangle
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SlotDPadUpAction; // Up on D-Pad
+
+	// --- INPUT FUNCTIONS ---
+	void HotbarModifierStarted();
+	void HotbarModifierCompleted();
+
+	// We pass in boolean parameters to determine if it was a Tap or a Hold
+	void Input_FaceTop_Tap();
+	void Input_FaceTop_Hold();
+
+	// D-Pad Functions
+	void Input_DPadUp_Tap(); 
+	void Input_DPadUp_Hold();
 			
 
 protected:
@@ -116,7 +144,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Nebula Combat|Methods")
 	void EquipWeaponFromRow(FName WeaponRowName);
 
-
+	// --- UI EVENTS FOR BLUEPRINTS ---
+	// Blueprints will listen for this to play the fade-in/fade-out animation of the Cross-Hotbar
+	UFUNCTION(BlueprintImplementableEvent, Category = "Nebula UI")
+	void OnToggleCrossHotbar(bool bIsOpen);
 
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 

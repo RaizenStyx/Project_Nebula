@@ -206,8 +206,45 @@ float UPlayerStatsComponent::CalculateIncomingPhysicalDamage(float BaseDamage) c
 {
     float EffectiveFortitude = GetEffectiveStatValue(Fortitude);
 
-    // Armor formula: 100 / (100 + Armor)
-    float DamageMultiplier = 100.0f / (100.0f + EffectiveFortitude);
+    // Combine base stat and equipment armor
+    float TotalPhysicalDefense = EffectiveFortitude + PhysicalArmorDefense;
+
+    // Armor formula: 100 / (100 + TotalArmor)
+    float DamageMultiplier = 100.0f / (100.0f + TotalPhysicalDefense);
+
+    return BaseDamage * DamageMultiplier;
+}
+
+float UPlayerStatsComponent::CalculateOutgoingMagicalDamage(float BaseSpellDamage)
+{
+    // 1. Get the Diminishing Returns applied value for Sync
+    float EffectiveSync = GetEffectiveStatValue(Synchronization);
+
+    // 2. Convert Sync into a percentage multiplier (+1.5% per point, same scaling as Prowess)
+    float SyncBonusPercentage = (EffectiveSync * 1.5f) / 100.0f;
+
+    // Note: Kept for when the Unified Passive Pool is connected
+    float PassiveBonusPercentage = 0.0f;
+
+    // 3. The flat magical advantage multiplier instead of physical Stances
+    float MagicMultiplier = 1.25f;
+
+    // 4. Execute the core formula
+    float TotalOutgoingDamage = (BaseSpellDamage * (1.0f + SyncBonusPercentage + PassiveBonusPercentage)) * MagicMultiplier;
+
+    return TotalOutgoingDamage;
+}
+
+float UPlayerStatsComponent::CalculateIncomingMagicalDamage(float BaseDamage) const
+{
+    // Vigor acts as Intellect/Magic Defense
+    float EffectiveVigor = GetEffectiveStatValue(Vigor);
+
+    // Combine base stat and equipment armor
+    float TotalMagicalDefense = EffectiveVigor + MagicalArmorDefense;
+
+    // Armor formula: 100 / (100 + TotalArmor)
+    float DamageMultiplier = 100.0f / (100.0f + TotalMagicalDefense);
 
     return BaseDamage * DamageMultiplier;
 }

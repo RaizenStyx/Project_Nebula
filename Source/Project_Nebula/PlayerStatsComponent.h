@@ -89,6 +89,13 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
     float MaxAwakeTimerMinutes;
 
+    // Variable for Armor. 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Armor")
+    float MagicalArmorDefense = 0.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Armor")
+    float PhysicalArmorDefense = 0.f;
+
     // -------------------------------------------------------------------
     // DELEGATES
     // -------------------------------------------------------------------
@@ -126,6 +133,13 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Nebula Stats|Combat")
     float CalculateIncomingPhysicalDamage(float BaseDamage) const;
+
+    // The Magic Damage Formulas
+    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Combat")
+    float CalculateOutgoingMagicalDamage(float BaseSpellDamage);
+
+    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Combat")
+    float CalculateIncomingMagicalDamage(float BaseDamage) const;
 
     // -------------------------------------------------------------------
     // PROGRESSION & XP

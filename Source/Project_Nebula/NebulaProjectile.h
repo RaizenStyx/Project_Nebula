@@ -8,7 +8,7 @@
 
 class USphereComponent;
 class UProjectileMovementComponent;
-//class UNiagaraComponent; 
+class UNiagaraComponent; 
 
 UCLASS()
 class PROJECT_NEBULA_API ANebulaProjectile : public AActor
@@ -32,8 +32,8 @@ protected:
     UProjectileMovementComponent* ProjectileMovement;
 
     // The visual effect of the spell
-    //UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    //UNiagaraComponent* VisualEffect;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    UNiagaraComponent* VisualEffect;
 
     // Function that runs when the collision sphere hits something
     UFUNCTION()

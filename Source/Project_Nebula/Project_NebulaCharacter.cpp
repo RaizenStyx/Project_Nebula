@@ -10,6 +10,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "PlayerStatsComponent.h"
+#include "Public/SkillManagerComponent.h"
 #include "InputActionValue.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -73,6 +74,11 @@ AProject_NebulaCharacter::AProject_NebulaCharacter()
 
 	// Turn off collision so the weapon doesn't bump into the player's own capsule
 	EquippedWeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+
+	// Adding Skill Manager here. 
+	// TODO: Look into adding stat component this way too. 
+	SkillManager = CreateDefaultSubobject<USkillManagerComponent>(TEXT("SkillManager"));
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -112,6 +118,23 @@ void AProject_NebulaCharacter::SetupPlayerInputComponent(UInputComponent* Player
 
 		// Dodging & Crouching
 		EnhancedInputComponent->BindAction(DodgeCrouchAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::DodgeOrCrouch);
+
+
+		
+		
+		// The Left Bumper (Modifier)
+		EnhancedInputComponent->BindAction(HotbarModifierAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::HotbarModifierStarted);
+		EnhancedInputComponent->BindAction(HotbarModifierAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::HotbarModifierCompleted);
+
+		// The Face Top Button (Y / Triangle) And Future other face buttons
+		// ETriggerEvent::Completed acts as a "Tap" (Released before Hold threshold)
+		EnhancedInputComponent->BindAction(SlotFaceTopAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_FaceTop_Tap);
+		// ETriggerEvent::Triggered acts as a "Hold" (Threshold met)
+		EnhancedInputComponent->BindAction(SlotFaceTopAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_FaceTop_Hold);
+
+		// D-Pad Input buttons will go here
+		EnhancedInputComponent->BindAction(SlotDPadUpAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_DPadUp_Tap);
+		EnhancedInputComponent->BindAction(SlotDPadUpAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_DPadUp_Hold);
 	}
 	else
 	{
@@ -265,4 +288,43 @@ float AProject_NebulaCharacter::TakeDamage(float DamageAmount, FDamageEvent cons
 	}
 
 	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+}
+
+void AProject_NebulaCharacter::HotbarModifierStarted()
+{
+	// Tell the Blueprint UI to appear!
+	OnToggleCrossHotbar(true);
+}
+
+void AProject_NebulaCharacter::HotbarModifierCompleted()
+{
+	// Tell the Blueprint UI to disappear!
+	OnToggleCrossHotbar(false);
+}
+
+void AProject_NebulaCharacter::Input_FaceTop_Tap()
+{
+	// Pass execution to the Skill Manager Component
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(ENebulaSkillSlot::Face_Top, false); // false = not a hold
+	}
+}
+
+void AProject_NebulaCharacter::Input_FaceTop_Hold()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(ENebulaSkillSlot::Face_Top, true); // true = is a hold
+	}
+}
+
+// At the bottom of the file:
+void AProject_NebulaCharacter::Input_DPadUp_Tap()
+{
+	if (SkillManager) SkillManager->ExecuteSkillInSlot(ENebulaSkillSlot::DPad_Up, false);
+}
+void AProject_NebulaCharacter::Input_DPadUp_Hold()
+{
+	if (SkillManager) SkillManager->ExecuteSkillInSlot(ENebulaSkillSlot::DPad_Up, true);
 }
