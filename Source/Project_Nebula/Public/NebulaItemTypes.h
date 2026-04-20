@@ -6,7 +6,7 @@
 #include "NebulaItemTypes.generated.h"
 
 // -------------------------------------------------------------------
-// 1. THE ENUM (Item Categories)
+// 1. THE ENUMS (Item Categories, Equipment Slots)
 // -------------------------------------------------------------------
 UENUM(BlueprintType)
 enum class ENebulaItemType : uint8
@@ -17,6 +17,20 @@ enum class ENebulaItemType : uint8
     Deployable  UMETA(DisplayName = "Deployable"),
     Equipment   UMETA(DisplayName = "Equipment"),
     Quest       UMETA(DisplayName = "Quest Item")
+};
+
+UENUM(BlueprintType)
+enum class EEquipmentSlot : uint8
+{
+    None        UMETA(DisplayName = "None"),
+    Head        UMETA(DisplayName = "Head"),
+    Chest       UMETA(DisplayName = "Chest"),
+    ArmR        UMETA(DisplayName = "Right Arm/Shoulder"),
+    ArmL        UMETA(DisplayName = "Left Arm/Shoulder"),
+    Legs        UMETA(DisplayName = "Legs"),
+    Feet        UMETA(DisplayName = "Feet"),
+    WeaponR     UMETA(DisplayName = "Right Hand (Main Weapon)"),
+    WeaponL     UMETA(DisplayName = "Left Hand (Shield/Focus)")
 };
 
 // -------------------------------------------------------------------
@@ -32,6 +46,9 @@ struct PROJECT_NEBULA_API FNebulaItemData : public FTableRowBase
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
     FText DisplayName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
+    FText Description;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item")
     ENebulaItemType ItemType = ENebulaItemType::None;
@@ -61,6 +78,20 @@ struct PROJECT_NEBULA_API FNebulaItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Usage")
     float StaminaRestoreAmount = 0.f;
 
+    // --- Usage: Cooldowns ---
+    // e.g., "Potion_Health", "Food", "Potion_Stamina". Leave as "None" for no cooldown.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Usage")
+    FName CooldownTag = NAME_None;
+
+    // How long (in seconds) the cooldown lasts
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Usage")
+    float CooldownDuration = 0.f;
+
+    // --- Usage: Equipment ---
+    // If this item is Equipment, which body part does it attach to?
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Usage")
+    EEquipmentSlot EquipSlot = EEquipmentSlot::None;
+
 };
 
 // -------------------------------------------------------------------
@@ -71,13 +102,36 @@ struct PROJECT_NEBULA_API FNebulaInventorySlot
 {
     GENERATED_BODY()
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory Slot")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Slot")
     FName ItemID = NAME_None;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory Slot")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Slot")
     int32 Quantity = 0;
 
     // Helper functions inside the struct make our Component code much cleaner!
     bool IsEmpty() const { return ItemID == NAME_None || Quantity <= 0; }
     void Clear() { ItemID = NAME_None; Quantity = 0; }
+};
+
+// -------------------------------------------------------------------
+// 4. THE CRAFTING RECIPE STRUCT
+// -------------------------------------------------------------------
+USTRUCT(BlueprintType)
+struct PROJECT_NEBULA_API FCraftingRecipe : public FTableRowBase
+{
+    GENERATED_BODY()
+
+    // The item you actually get when you craft this (e.g., "Tent")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Recipe")
+    FName ResultItemID = NAME_None;
+
+    // How many you get (usually 1, but maybe 5 if crafting Arrows)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Recipe", meta = (ClampMin = "1"))
+    int32 ResultQuantity = 1;
+
+    // The list of required items. We reuse our trusty Inventory Slot struct here!
+    // Example: [0] ItemID: BasicWood, Quantity: 10
+    //          [1] ItemID: Cloth, Quantity: 5
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Recipe")
+    TArray<FNebulaInventorySlot> RequiredIngredients;
 };

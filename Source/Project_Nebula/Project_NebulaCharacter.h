@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
 #include "WeaponDataTypes.h"
+#include "Public/NebulaItemTypes.h"
 #include "Components/SphereComponent.h"
 #include "Project_NebulaCharacter.generated.h"
 
@@ -140,9 +141,43 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Nebula Interaction")
 	AActor* CurrentInteractable;
 
-	// The function your UI will call to swap weapons
-	UFUNCTION(BlueprintCallable, Category = "Nebula Combat|Methods")
-	void EquipWeaponFromRow(FName WeaponRowName);
+	// Tracks the ID of the currently equipped weapon (matches the Data Table Row Name)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment")
+	FName EquippedWeaponItemID = NAME_None;
+
+	// --- Equipment Visual Components ---
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment Visuals")
+	TObjectPtr<UStaticMeshComponent> HeadMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment Visuals")
+	TObjectPtr<UStaticMeshComponent> ChestMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment Visuals")
+	TObjectPtr<UStaticMeshComponent> ArmRMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment Visuals")
+	TObjectPtr<UStaticMeshComponent> ArmLMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment Visuals")
+	TObjectPtr<UStaticMeshComponent> LegsMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment Visuals")
+	TObjectPtr<UStaticMeshComponent> FeetMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment Visuals")
+	TObjectPtr<UStaticMeshComponent> WeaponRMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment Visuals")
+	TObjectPtr<UStaticMeshComponent> WeaponLMesh;
+
+	// --- The Universal Update Function ---
+	// Replaces EquipWeaponFromRow
+	UFUNCTION(BlueprintCallable, Category = "Equipment")
+	void UpdateEquipmentVisuals(EEquipmentSlot Slot, FName ItemRowName);
+
+	// Helper to unequip the current weapon
+	UFUNCTION(BlueprintCallable, Category = "Equipment")
+	void UnequipWeapon();
 
 	// --- UI EVENTS FOR BLUEPRINTS ---
 	// Blueprints will listen for this to play the fade-in/fade-out animation of the Cross-Hotbar

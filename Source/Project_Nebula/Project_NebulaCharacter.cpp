@@ -57,24 +57,45 @@ AProject_NebulaCharacter::AProject_NebulaCharacter()
 
 	InteractionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionSphere"));
 	InteractionSphere->SetupAttachment(RootComponent);
-	InteractionSphere->SetSphereRadius(150.0f); // Adjust this radius for how close they need to be
-	InteractionSphere->SetCollisionProfileName(TEXT("Trigger")); // Only overlaps, doesn't block movement
+	// Adjust this radius for how close they need to be
+	InteractionSphere->SetSphereRadius(150.0f); 
+	// Only overlaps, doesn't block movement
+	InteractionSphere->SetCollisionProfileName(TEXT("Trigger")); 
 
+	// Initialize and attach all equipment meshes to their respective sockets!
+	// We set NoCollision so your armor doesn't block your own camera or movement.
 
+	HeadMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeadMesh"));
+	HeadMesh->SetupAttachment(GetMesh(), TEXT("Socket_Head"));
+	HeadMesh->SetCollisionProfileName(TEXT("NoCollision"));
 
-	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
-	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+	ChestMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ChestMesh"));
+	ChestMesh->SetupAttachment(GetMesh(), TEXT("Socket_Chest"));
+	ChestMesh->SetCollisionProfileName(TEXT("NoCollision"));
 
-	// 1. Create the Weapon Mesh Component
-	EquippedWeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EquippedWeaponMesh"));
+	WeaponRMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponRMesh"));
+	WeaponRMesh->SetupAttachment(GetMesh(), TEXT("Socket_WeaponR"));
+	WeaponRMesh->SetCollisionProfileName(TEXT("NoCollision"));
 
-	// 2. Attach it to your character skeleton's hand socket 
-	// (Make sure "WeaponSocket" exactly matches the socket name on your skeletal mesh!)
-	EquippedWeaponMesh->SetupAttachment(GetMesh(), FName("WeaponSocket"));
+	WeaponLMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponLMesh"));
+	WeaponLMesh->SetupAttachment(GetMesh(), TEXT("Socket_WeaponL"));
+	WeaponLMesh->SetCollisionProfileName(TEXT("NoCollision"));
 
-	// Turn off collision so the weapon doesn't bump into the player's own capsule
-	EquippedWeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ArmLMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmLMesh"));
+	ArmLMesh->SetupAttachment(GetMesh(), TEXT("Socket_ArmL"));
+	ArmLMesh->SetCollisionProfileName(TEXT("NoCollision"));
 
+	ArmRMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmRMesh"));
+	ArmRMesh->SetupAttachment(GetMesh(), TEXT("Socket_ArmR"));
+	ArmRMesh->SetCollisionProfileName(TEXT("NoCollision"));
+
+	LegsMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LegsMesh"));
+	LegsMesh->SetupAttachment(GetMesh(), TEXT("Socket_Legs"));
+	LegsMesh->SetCollisionProfileName(TEXT("NoCollision"));
+
+	FeetMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("FeetMesh"));
+	FeetMesh->SetupAttachment(GetMesh(), TEXT("Socket_Feet"));
+	FeetMesh->SetCollisionProfileName(TEXT("NoCollision"));
 
 	// Adding Skill Manager here. 
 	// TODO: Look into adding stat component this way too. 
@@ -227,40 +248,85 @@ void AProject_NebulaCharacter::DodgeOrCrouch(const FInputActionValue& Value)
 	}
 }
 
-void AProject_NebulaCharacter::EquipWeaponFromRow(FName WeaponRowName)
+void AProject_NebulaCharacter::UpdateEquipmentVisuals(EEquipmentSlot Slot, FName ItemRowName)
 {
-	// Fail-safe: Make sure the Data Table is actually assigned in the editor!
-	if (!WeaponDataTable)
+	// 1. Determine WHICH mesh component we are changing based on the Enum
+	UStaticMeshComponent* TargetMeshComp = nullptr;
+
+	switch (Slot)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("WeaponDataTable is missing on the Character!"));
+	case EEquipmentSlot::Head: TargetMeshComp = HeadMesh; break;
+	case EEquipmentSlot::Chest: TargetMeshComp = ChestMesh; break;
+	case EEquipmentSlot::ArmR: TargetMeshComp = ArmRMesh; break;
+	case EEquipmentSlot::ArmL: TargetMeshComp = ArmLMesh; break;
+	case EEquipmentSlot::Legs: TargetMeshComp = LegsMesh; break;
+	case EEquipmentSlot::Feet: TargetMeshComp = FeetMesh; break;
+	case EEquipmentSlot::WeaponR: TargetMeshComp = WeaponRMesh; break;
+	case EEquipmentSlot::WeaponL: TargetMeshComp = WeaponLMesh; break;
+	case EEquipmentSlot::None: return;
+	}
+
+	if (!TargetMeshComp) return;
+
+	// 2. If we passed in "NAME_None", it means we are UNEQUIPPING. Clear the mesh!
+	if (ItemRowName.IsNone())
+	{
+		TargetMeshComp->SetStaticMesh(nullptr);
+		if (Slot == EEquipmentSlot::WeaponR)
+		{
+			CurrentWeaponInfo = FWeaponInfo(); // Clears stats to 0
+		}
 		return;
 	}
 
-	// Search the Data Table for the exact Row Name
-	static const FString ContextString(TEXT("Weapon Equip Context"));
-	FWeaponInfo* FoundWeaponRow = WeaponDataTable->FindRow<FWeaponInfo>(WeaponRowName, ContextString);
-
-	if (FoundWeaponRow)
+	// 3. Look up the 3D model (and stats!) in the Database
+	if (WeaponDataTable)
 	{
-		// 1. Overwrite our current stats with the new weapon's stats
-		CurrentWeaponInfo = *FoundWeaponRow;
+		static const FString ContextString(TEXT("Equipment Visual Context"));
+		FWeaponInfo* FoundRow = WeaponDataTable->FindRow<FWeaponInfo>(ItemRowName, ContextString);
 
-		// 2. Update the 3D model in the player's hand
-		if (CurrentWeaponInfo.VisualMesh)
+		if (FoundRow)
 		{
-			EquippedWeaponMesh->SetStaticMesh(CurrentWeaponInfo.VisualMesh);
+			// Set the visual mesh if it has one
+			if (FoundRow->VisualMesh)
+			{
+				TargetMeshComp->SetStaticMesh(FoundRow->VisualMesh);
+			}
+			else
+			{
+				TargetMeshComp->SetStaticMesh(nullptr);
+			}
+
+			// --- THE STAT FIX ---
+			// If this is our main weapon, save the stats to the Character!
+			if (Slot == EEquipmentSlot::WeaponR)
+			{
+				CurrentWeaponInfo = *FoundRow;
+			}
+			// --------------------
 		}
 		else
 		{
-			// If the DT has an empty mesh, clear the hand
-			EquippedWeaponMesh->SetStaticMesh(nullptr);
+			// Fallback: Clear everything if row isn't found
+			TargetMeshComp->SetStaticMesh(nullptr);
+			if (Slot == EEquipmentSlot::WeaponR)
+			{
+				CurrentWeaponInfo = FWeaponInfo(); // Clears stats to 0
+			}
 		}
-
-		UE_LOG(LogTemp, Display, TEXT("Successfully equipped: %s"), *CurrentWeaponInfo.ItemName.ToString());
 	}
-	else
+}
+
+void AProject_NebulaCharacter::UnequipWeapon()
+{
+	// Clear the stats and the ID
+	CurrentWeaponInfo = FWeaponInfo(); // Resets to default struct values
+	EquippedWeaponItemID = NAME_None;
+
+	// Clear the mesh from the player's hand
+	if (EquippedWeaponMesh)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Could not find weapon row: %s"), *WeaponRowName.ToString());
+		EquippedWeaponMesh->SetStaticMesh(nullptr);
 	}
 }
 

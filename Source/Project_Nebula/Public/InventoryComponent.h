@@ -36,9 +36,27 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Inventory|Actions")
     void UseItem(int32 SlotIndex);
 
+    // Scans the whole inventory to see if you have enough of a specific item
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Crafting")
+    bool HasEnoughItems(FName ItemID, int32 RequiredAmount) const;
+
+    // Searches the inventory and deletes the specified amount. 
+    // Handles pulling from multiple different stacks if necessary!
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Crafting")
+    bool ConsumeItems(FName ItemID, int32 AmountToConsume);
+
 protected:
     virtual void BeginPlay() override;
 
     // Helper to fetch data safely
     FNebulaItemData* GetItemData(FName ItemID) const;
+
+public:
+    // Memory bank for cooldowns: Maps the CooldownTag to its Expiration Time
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory|Cooldowns")
+    TMap<FName, float> CooldownExpirations;
+
+    // A helper function we can call from UI to show a spinning cooldown timer later!
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Cooldowns")
+    float GetRemainingCooldown(FName CooldownTag) const;
 };
