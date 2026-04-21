@@ -189,5 +189,8 @@ public:
 	// I-frame state flag
 	UPROPERTY(BlueprintReadOnly, Category = "Combat")
 	bool bIsInvincible = false;
+
+	UFUNCTION()
+	void UseStudyBook();
 };
 

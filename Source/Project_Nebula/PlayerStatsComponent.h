@@ -11,6 +11,7 @@
 //// Delegates for UI and other systems to listen to
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChangedSignature, float, CurrentHealth, float, MaxHealth);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStaminaChangedSignature, float, CurrentStamina, float, MaxStamina);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnManaChangedSignature, float, CurrentMana, float, MaxMana);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAwakeTimerChangedSignature, float, CurrentAwakeTime);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelUpSignature, int32, NewLevel);
 
@@ -107,6 +108,9 @@ public:
     FOnStaminaChangedSignature OnStaminaChanged;
 
     UPROPERTY(BlueprintAssignable, Category = "Nebula Stats|Events")
+    FOnManaChangedSignature OnManaChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Nebula Stats|Events")
     FOnAwakeTimerChangedSignature OnAwakeTimerChanged;
 
     // -------------------------------------------------------------------
@@ -120,6 +124,9 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Methods")
     void ModifyStamina(float Amount);
+
+    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Methods")
+    void ModifyMana(float Amount);
 
     UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Methods")
     void ModifyAwakeTimer(float Amount);   
@@ -195,5 +202,31 @@ public:
     // Spends one unallocated point on the chosen stat. Returns true if successful.
     UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Methods")
     bool SpendStatPoint(ENebulaStatType StatToUpgrade);
+
+
+    // -------------------------------------------------------------------
+// MAGIC & MANA SYSTEM
+// -------------------------------------------------------------------
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Magic")
+    bool bIsManaUnlocked = false;
+
+    // Tracks how much the player has read/studied the book
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Magic")
+    float MagicStudyProgress = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
+    float CurrentMana = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
+    float MaxMana = 0.0f;
+
+    // -------------------------------------------------------------------
+    // METHODS
+    // -------------------------------------------------------------------
+    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Magic")
+    void StudyMagicBook(float AwakeTimeCost, float ProgressAmount);
+
+    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Magic")
+    void UnlockManaSystem();
 
 };

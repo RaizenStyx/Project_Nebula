@@ -1,5 +1,6 @@
 #include "Skill_MasterSpell.h"
 #include "../Project_NebulaCharacter.h"
+#include "../PlayerStatsComponent.h"
 
 USkill_MasterSpell::USkill_MasterSpell()
 {
@@ -9,8 +10,16 @@ USkill_MasterSpell::USkill_MasterSpell()
 
 bool USkill_MasterSpell::MeetsClassRequirements(AProject_NebulaCharacter* Caster) const
 {
-    // Pseudo-code: In the future, check if Caster->GetCurrentClass()->IsMage()
-    return true;
+    if (Caster)
+    {
+        // Find the stats component on the caster
+        if (UPlayerStatsComponent* StatsComp = Caster->FindComponentByClass<UPlayerStatsComponent>())
+        {
+            // Return true ONLY if the mana system is unlocked
+            return StatsComp->bIsManaUnlocked;
+        }
+    }
+    return false;
 }
 
 void USkill_MasterSpell::ExecuteSkill(AProject_NebulaCharacter* Caster)

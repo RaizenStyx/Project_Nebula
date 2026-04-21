@@ -395,3 +395,50 @@ bool UPlayerStatsComponent::SpendStatPoint(ENebulaStatType StatToUpgrade)
 
     return true;
 }
+
+void UPlayerStatsComponent::StudyMagicBook(float AwakeTimeCost, float ProgressAmount)
+{
+    // Prevent redundant studying if already unlocked
+    if (bIsManaUnlocked) return;
+
+    // 1. Deduct from the Awake Timer to simulate time passing while reading [cite: 44]
+    ModifyAwakeTimer(-AwakeTimeCost);
+
+    // 2. Advance the study progress
+    MagicStudyProgress += ProgressAmount;
+
+    // 3. Check for threshold. Passing 100.0f for ProgressAmount will make this instant for now.
+    if (MagicStudyProgress >= 100.0f)
+    {
+        UnlockManaSystem();
+    }
+}
+
+void UPlayerStatsComponent::UnlockManaSystem()
+{
+    bIsManaUnlocked = true;
+
+    // Initialize the separated Mana pool. 
+    // Vigor directly governs the mental capacity for this new pool[cite: 52].
+    float EffectiveVigor = GetEffectiveStatValue(Vigor);
+
+    // Example Formula: 50 Base Mana + 10 per Vigor point
+    MaxMana = 50.0f + (EffectiveVigor * 10.0f);
+    CurrentMana = MaxMana;
+
+    // If the act of splitting the hybrid pool permanently reduces maximum physical stamina, 
+    // you would deduct a percentage of MaxStamina here and call OnStaminaChanged.Broadcast().
+}
+
+void UPlayerStatsComponent::ModifyMana(float Amount)
+{
+    // Don't allow modification if the system isn't unlocked
+    if (!bIsManaUnlocked) return;
+
+    CurrentMana = FMath::Clamp(CurrentMana + Amount, 0.0f, MaxMana);
+
+    OnManaChanged.Broadcast(CurrentMana, MaxMana);
+
+    // FUTURE: Add your "Mana Burn" 5-second freeze logic here 
+    // if (CurrentMana <= 0.0f) { ... }
+}

@@ -394,3 +394,21 @@ void AProject_NebulaCharacter::Input_DPadUp_Hold()
 {
 	if (SkillManager) SkillManager->ExecuteSkillInSlot(ENebulaSkillSlot::DPad_Up, true);
 }
+
+
+// Example implementation when the player interacts with the "Study Book"
+void AProject_NebulaCharacter::UseStudyBook()
+{
+	if (UPlayerStatsComponent* StatsComp = FindComponentByClass<UPlayerStatsComponent>())
+	{
+		// For testing the instant unlock: 
+		// Costs 60 minutes of Awake Time, grants 100% progress.
+		// Later, change 100.0f to 25.0f to require 4 separate study sessions.
+		StatsComp->StudyMagicBook(60.0f, 100.0f);
+
+		if (StatsComp->bIsManaUnlocked)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Cyan, TEXT("Mana System Unlocked!"));
+		}
+	}
+}

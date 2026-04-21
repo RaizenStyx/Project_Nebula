@@ -131,6 +131,10 @@ bool UInventoryComponent::RemoveItemFromSlot(int32 SlotIndex, int32 QuantityToRe
     return true;
 }
 
+// -------------------------------------------------------------------
+// ACTION: Add items
+// -------------------------------------------------------------------
+
 void UInventoryComponent::UseItem(int32 SlotIndex)
 {
     // 1. Safety check: Is this a valid slot and does it actually have an item?
@@ -168,8 +172,31 @@ void UInventoryComponent::UseItem(int32 SlotIndex)
     {
     case ENebulaItemType::Consumable:
 
-        // Is it a Skill Orb?
-        if (ItemData->GrantedSkill != nullptr)
+        // 1. --- THE PROGRESSION ITEM INTERCEPT ---
+        if (ID == FName("Item_StudyBook"))
+        {
+            if (UPlayerStatsComponent* StatsComp = PlayerChar->FindComponentByClass<UPlayerStatsComponent>())
+            {
+                // Optional: Prevent them from studying it again if it's already unlocked
+                if (StatsComp->bIsManaUnlocked)
+                {
+                    GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Yellow, TEXT("You have already mastered this knowledge."));
+                    return; // Abort entirely
+                }
+
+                // Drain 60 mins of Awake Time, grant 100% progress (instant unlock for now)
+                StatsComp->StudyMagicBook(60.0f, 100.0f);
+
+                // Notice we intentionally DO NOT set bItemWasUsed = true here.
+                // This ensures the inventory system won't delete the book from the slot!
+
+                // We can break out of the switch early since we handled the item.
+                break;
+            }
+        }
+
+        // 2. Is it a Skill Orb?
+        else if (ItemData->GrantedSkill != nullptr)
         {
             if (USkillManagerComponent* SkillManager = PlayerChar->FindComponentByClass<USkillManagerComponent>())
             {
@@ -181,14 +208,15 @@ void UInventoryComponent::UseItem(int32 SlotIndex)
                 bItemWasUsed = true;
             }
         }
-        // Otherwise, it's a normal potion/food
+
+        // 3. Otherwise, it's a normal potion/food
         else
         {
             if (UPlayerStatsComponent* StatsComp = PlayerChar->FindComponentByClass<UPlayerStatsComponent>())
             {
                 // Uncomment these once your Heal/Restore stamina functions exist in UPlayerStatsComponent!
-                // StatsComp->RestoreHealth(ItemData->HealthRestoreAmount);
-                // StatsComp->RestoreStamina(ItemData->StaminaRestoreAmount);
+                // StatsComp->ModifyHealth(ItemData->HealthRestoreAmount);
+                // StatsComp->ModifyStamina(ItemData->StaminaRestoreAmount);
                 bItemWasUsed = true;
             }
         }
