@@ -187,7 +187,7 @@ void UInventoryComponent::UseItem(int32 SlotIndex)
                 // Drain 60 mins of Awake Time, grant 100% progress (instant unlock for now)
                 StatsComp->StudyMagicBook(60.0f, 100.0f);
 
-                // Notice we intentionally DO NOT set bItemWasUsed = true here.
+                // Notice we in entionally DO NOT set bItemWasUsed = true here.
                 // This ensures the inventory system won't delete the book from the slot!
 
                 // We can break out of the switch early since we handled the item.
@@ -200,12 +200,34 @@ void UInventoryComponent::UseItem(int32 SlotIndex)
         {
             if (USkillManagerComponent* SkillManager = PlayerChar->FindComponentByClass<USkillManagerComponent>())
             {
-                // Create the skill object and add it to the Unlocked Passives pool you made!
-                UNebulaSkillBase* NewSkill = NewObject<UNebulaSkillBase>(PlayerChar, ItemData->GrantedSkill);
-                SkillManager->UnlockedPassives.Add(NewSkill);
+                // Attempt to learn and equip it. This function handles Active/Passive routing AND Auto-Slotting!
+                bool bSuccess = SkillManager->LearnSkillFromItem(ItemData->GrantedSkill, ItemData->AllowedClasses);
 
-                // TODO: Fire off a cool particle effect/sound here later
+                if (bSuccess)
+                {
+                    // This tells the end of the UseItem function to consume 1 from the stack!
+                    bItemWasUsed = true;
+                    UE_LOG(LogTemp, Log, TEXT("Successfully learned and equipped new skill!"));
+                }
+                else
+                {
+                    // Fire UI notification: "Cannot learn this skill right now" (or "Hotbar Full")
+                    UE_LOG(LogTemp, Warning, TEXT("Failed to learn skill - restricted class or hotbar is full."));
+                }
+            }
+        }
+
+        // Inside UInventoryComponent::UseItem
+
+        // 3. Is it a Class Token?
+        else if (ItemData->GrantedClass != nullptr)
+        {
+            if (USkillManagerComponent* SkillManager = PlayerChar->FindComponentByClass<USkillManagerComponent>())
+            {
+                SkillManager->EquipNewClass(ItemData->GrantedClass, 1);
+
                 bItemWasUsed = true;
+                UE_LOG(LogTemp, Log, TEXT("Player consumed token and changed classes!"));
             }
         }
 

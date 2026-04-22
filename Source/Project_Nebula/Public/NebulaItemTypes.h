@@ -33,6 +33,26 @@ enum class EEquipmentSlot : uint8
     WeaponL     UMETA(DisplayName = "Left Hand (Shield/Focus)")
 };
 
+
+// -------------------------------------------------------------------
+// 1.1 THE ENUMS For class system
+// -------------------------------------------------------------------
+UENUM(BlueprintType)
+enum class ENebulaStarRank : uint8
+{
+    OneStar     UMETA(DisplayName = "1-Star"),
+    TwoStar     UMETA(DisplayName = "2-Star"),
+    ThreeStar   UMETA(DisplayName = "3-Star Pinnacle")
+};
+
+UENUM(BlueprintType)
+enum class ENebulaResourceType : uint8
+{
+    PurePhysical UMETA(DisplayName = "Pure Physical"),
+    PureMana     UMETA(DisplayName = "Pure Mana"),
+    Hybrid       UMETA(DisplayName = "Hybrid")
+};
+
 // -------------------------------------------------------------------
 // 2. THE MASTER DATA STRUCT (For the Data Table)
 // -------------------------------------------------------------------
@@ -92,6 +112,15 @@ struct PROJECT_NEBULA_API FNebulaItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Usage")
     EEquipmentSlot EquipSlot = EEquipmentSlot::None;
 
+    // If empty, ANY class can learn it (Normal Skill). 
+    // If populated, ONLY the classes in this list can learn it (Class Skill).
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Skills")
+    TArray<class UNebulaClassTemplate*> AllowedClasses;
+
+    // For items that grant classes
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Skills")
+    UNebulaClassTemplate* GrantedClass;
+
 };
 
 // -------------------------------------------------------------------
@@ -134,4 +163,22 @@ struct PROJECT_NEBULA_API FCraftingRecipe : public FTableRowBase
     //          [1] ItemID: Cloth, Quantity: 5
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Recipe")
     TArray<FNebulaInventorySlot> RequiredIngredients;
+};
+
+// -------------------------------------------------------------------
+// 5. THE SKILL UNLOCK STRUCT
+// -------------------------------------------------------------------
+
+USTRUCT(BlueprintType)
+struct PROJECT_NEBULA_API FSkillUnlockNode
+{
+    GENERATED_BODY()
+
+    // The class level required to unlock this skill
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unlock Schedule")
+    int32 RequiredLevel = 1;
+
+    // The specific skill granted at this level
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Unlock Schedule")
+    TSubclassOf<UNebulaSkillBase> SkillToUnlock;
 };

@@ -2,6 +2,7 @@
 
 #include "PlayerStatsComponent.h"
 #include "Math/UnrealMathUtility.h"
+#include "Public/SkillManagerComponent.h"
 
 UPlayerStatsComponent::UPlayerStatsComponent()
 {
@@ -355,6 +356,11 @@ void UPlayerStatsComponent::AddExperience(float RawXP)
         {
             CurrentClassXP -= NextLevelClassXP;
             ClassLevel++;
+            USkillManagerComponent* SkillManager = GetOwner()->FindComponentByClass<USkillManagerComponent>();
+            if (SkillManager)
+            {
+                SkillManager->EvaluateLevelUpUnlocks();
+            }
             // Class XP requirement is always exactly 50% of the Main Level requirement [cite: 123]
             NextLevelClassXP = CalculateRequiredXP(ClassLevel) * 0.5f;
         }

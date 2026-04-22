@@ -143,19 +143,51 @@ void AProject_NebulaCharacter::SetupPlayerInputComponent(UInputComponent* Player
 
 		
 		
-		// The Left Bumper (Modifier)
-		EnhancedInputComponent->BindAction(HotbarModifierAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::HotbarModifierStarted);
-		EnhancedInputComponent->BindAction(HotbarModifierAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::HotbarModifierCompleted);
+		// The Left Bumper (Normal Skills Modifier)
+		EnhancedInputComponent->BindAction(HotbarModifierAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_LB_Started);
+		EnhancedInputComponent->BindAction(HotbarModifierAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_LB_Completed);
 
-		// The Face Top Button (Y / Triangle) And Future other face buttons
+		// The Right Bumper (Class Skills Modifier)
+		EnhancedInputComponent->BindAction(ClassHotbarModifierAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_RB_Started);
+		EnhancedInputComponent->BindAction(ClassHotbarModifierAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_RB_Completed);
+
+		// The Face Top Button (Y / Triangle) 
 		// ETriggerEvent::Completed acts as a "Tap" (Released before Hold threshold)
 		EnhancedInputComponent->BindAction(SlotFaceTopAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_FaceTop_Tap);
 		// ETriggerEvent::Triggered acts as a "Hold" (Threshold met)
 		EnhancedInputComponent->BindAction(SlotFaceTopAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_FaceTop_Hold);
 
+
+		// The Face Left Button (X / Square)
+		// ETriggerEvent::Completed acts as a "Tap" (Released before Hold threshold)
+		EnhancedInputComponent->BindAction(SlotFaceLeftAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_FaceLeft_Tap);
+		// ETriggerEvent::Triggered acts as a "Hold" (Threshold met)
+		EnhancedInputComponent->BindAction(SlotFaceLeftAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_FaceLeft_Hold);
+
+		// The Face Left Button (A / X)
+		// ETriggerEvent::Completed acts as a "Tap" (Released before Hold threshold)
+		EnhancedInputComponent->BindAction(SlotFaceBottomAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_FaceBottom_Tap);
+		// ETriggerEvent::Triggered acts as a "Hold" (Threshold met)
+		EnhancedInputComponent->BindAction(SlotFaceBottomAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_FaceBottom_Hold);
+
+		// The Face Left Button (B / Circle)
+		// ETriggerEvent::Completed acts as a "Tap" (Released before Hold threshold)
+		EnhancedInputComponent->BindAction(SlotFaceRightAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_FaceRight_Tap);
+		// ETriggerEvent::Triggered acts as a "Hold" (Threshold met)
+		EnhancedInputComponent->BindAction(SlotFaceRightAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_FaceRight_Hold);
+
 		// D-Pad Input buttons will go here
 		EnhancedInputComponent->BindAction(SlotDPadUpAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_DPadUp_Tap);
 		EnhancedInputComponent->BindAction(SlotDPadUpAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_DPadUp_Hold);
+
+		EnhancedInputComponent->BindAction(SlotDPadDownAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_DPadDown_Tap);
+		EnhancedInputComponent->BindAction(SlotDPadDownAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_DPadDown_Hold);
+
+		EnhancedInputComponent->BindAction(SlotDPadLeftAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_DPadLeft_Tap);
+		EnhancedInputComponent->BindAction(SlotDPadLeftAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_DPadLeft_Hold);
+
+		EnhancedInputComponent->BindAction(SlotDPadRightAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_DPadRight_Tap);
+		EnhancedInputComponent->BindAction(SlotDPadRightAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_DPadRight_Hold);
 	}
 	else
 	{
@@ -356,24 +388,49 @@ float AProject_NebulaCharacter::TakeDamage(float DamageAmount, FDamageEvent cons
 	return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 }
 
-void AProject_NebulaCharacter::HotbarModifierStarted()
+// ---------------------------------------------------------
+// MODIFIER BUTTONS (LB / RB)
+// ---------------------------------------------------------
+
+void AProject_NebulaCharacter::Input_LB_Started()
 {
-	// Tell the Blueprint UI to appear!
-	OnToggleCrossHotbar(true);
+	// Set the state to Normal Skills
+	CurrentHotbarCategory = ENebulaSkillCategory::Normal;
+
+	// Tell the Blueprint UI to appear and show the Normal spellbook
+	OnToggleCrossHotbar(true, CurrentHotbarCategory);
 }
 
-void AProject_NebulaCharacter::HotbarModifierCompleted()
+void AProject_NebulaCharacter::Input_LB_Completed()
 {
-	// Tell the Blueprint UI to disappear!
-	OnToggleCrossHotbar(false);
+	OnToggleCrossHotbar(false, CurrentHotbarCategory);
 }
+
+void AProject_NebulaCharacter::Input_RB_Started()
+{
+	// Set the state to Class Skills
+	CurrentHotbarCategory = ENebulaSkillCategory::Class;
+
+	// Tell the Blueprint UI to appear and show the Class spellbook
+	OnToggleCrossHotbar(true, CurrentHotbarCategory);
+}
+
+void AProject_NebulaCharacter::Input_RB_Completed()
+{
+	OnToggleCrossHotbar(false, CurrentHotbarCategory);
+}
+
+
+// ---------------------------------------------------------
+// FACE BUTTONS & D-PAD EXECUTION
+// ---------------------------------------------------------
 
 void AProject_NebulaCharacter::Input_FaceTop_Tap()
 {
-	// Pass execution to the Skill Manager Component
+	// We pass in CurrentHotbarCategory, which dynamically routes to the correct map!
 	if (SkillManager)
 	{
-		SkillManager->ExecuteSkillInSlot(ENebulaSkillSlot::Face_Top, false); // false = not a hold
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Top, false);
 	}
 }
 
@@ -381,19 +438,123 @@ void AProject_NebulaCharacter::Input_FaceTop_Hold()
 {
 	if (SkillManager)
 	{
-		SkillManager->ExecuteSkillInSlot(ENebulaSkillSlot::Face_Top, true); // true = is a hold
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Top, true);
 	}
 }
 
-// At the bottom of the file:
+void AProject_NebulaCharacter::Input_FaceBottom_Tap()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Bottom, false);
+	}
+}
+
+void AProject_NebulaCharacter::Input_FaceBottom_Hold()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Bottom, true);
+	}
+}
+
+void AProject_NebulaCharacter::Input_FaceLeft_Tap()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Left, false);
+	}
+}
+
+void AProject_NebulaCharacter::Input_FaceLeft_Hold()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Left, true);
+	}
+}
+
+void AProject_NebulaCharacter::Input_FaceRight_Tap()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Right, false);
+	}
+}
+
+void AProject_NebulaCharacter::Input_FaceRight_Hold()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Right, true);
+	}
+}
+
 void AProject_NebulaCharacter::Input_DPadUp_Tap()
 {
-	if (SkillManager) SkillManager->ExecuteSkillInSlot(ENebulaSkillSlot::DPad_Up, false);
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Up, false);
+	}
 }
+
 void AProject_NebulaCharacter::Input_DPadUp_Hold()
 {
-	if (SkillManager) SkillManager->ExecuteSkillInSlot(ENebulaSkillSlot::DPad_Up, true);
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Up, true);
+	}
 }
+
+void AProject_NebulaCharacter::Input_DPadDown_Tap()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Down, false);
+	}
+}
+
+void AProject_NebulaCharacter::Input_DPadDown_Hold()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Down, true);
+	}
+}
+
+void AProject_NebulaCharacter::Input_DPadLeft_Tap()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Left, false);
+	}
+}
+
+void AProject_NebulaCharacter::Input_DPadLeft_Hold()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Left, true);
+	}
+}
+
+void AProject_NebulaCharacter::Input_DPadRight_Tap()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Right, false);
+	}
+}
+
+void AProject_NebulaCharacter::Input_DPadRight_Hold()
+{
+	if (SkillManager)
+	{
+		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Right, true);
+	}
+}
+
+
 
 
 // Example implementation when the player interacts with the "Study Book"

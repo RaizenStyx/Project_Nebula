@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "../NebulaSkillBase.h"
+#include "NebulaClassTemplate.h"
+#include "NebulaEssenceTemplate.h"
 #include "SkillManagerComponent.generated.h"
 
 // Maps directly to your GDD Section 3 Action Palette
@@ -31,44 +33,119 @@ public:
     USkillManagerComponent();
 
     // -------------------------------------------------------------------
-    // ACTIVE SKILLS (The Cross-Hotbar)
+    // 1. NORMAL SKILL POOLS
+    // Rule: Actives are forgotten if overwritten. Passives can be swapped.
     // -------------------------------------------------------------------
 
-    // Stores instantiated skill objects mapped to their inputs
-    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Actives")
-    TMap<ENebulaSkillSlot, UNebulaSkillBase*> ActiveSkillSlots;
+    // The equipped Normal Actives. Notice there is NO "Unlocked" array for Normal Actives per your rules!
+    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Normal")
+    TMap<ENebulaSkillSlot, UNebulaSkillBase*> EquippedNormalActives;
 
-    // Equips a skill to a slot. Returns false if the slot is already full!
+    // Normal Passives (can be swapped at will)
+    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Normal")
+    TArray<UNebulaSkillBase*> EquippedNormalPassives;
+
+    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Normal")
+    TArray<UNebulaSkillBase*> UnlockedNormalPassives;
+
     UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Actives")
     bool EquipActiveSkill(TSubclassOf<UNebulaSkillBase> SkillClass, ENebulaSkillSlot Slot);
 
-    // Clears a slot so the player can equip a new one
     UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Actives")
-    void ForgetActiveSkill(ENebulaSkillSlot Slot);
+    void ForgetActiveSkill(ENebulaSkillCategory Category, ENebulaSkillSlot Slot);
 
-    // Swaps two slots for free UI arrangement
     UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Actives")
-    void SwapActiveSlots(ENebulaSkillSlot SlotA, ENebulaSkillSlot SlotB);
+    void SwapActiveSlots(ENebulaSkillCategory Category, ENebulaSkillSlot SlotA, ENebulaSkillSlot SlotB);
 
-    // The function your Character Input will call to fire the spell
     UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Execution")
-    void ExecuteSkillInSlot(ENebulaSkillSlot Slot, bool bIsHold);
-
-    // -------------------------------------------------------------------
-    // PASSIVE SKILLS (The Unified Pool)
-    // -------------------------------------------------------------------
-
-    // Hard cap of 10 equipped passives per GDD
-    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Passives")
-    TArray<UNebulaSkillBase*> EquippedPassives;
-
-    // The library of passives the player has found but isn't using
-    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Passives")
-    TArray<UNebulaSkillBase*> UnlockedPassives;
+    void ExecuteSkillInSlot(ENebulaSkillCategory Category, ENebulaSkillSlot Slot, bool bIsHold);
 
     UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Passives")
     bool EquipPassiveSkill(TSubclassOf<UNebulaSkillBase> PassiveClass);
 
     UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Passives")
-    void UnequipPassiveSkill(int32 EquippedIndex);
+    void UnequipPassiveSkill(ENebulaSkillCategory Category, int32 EquippedIndex);
+
+    // -------------------------------------------------------------------
+    // 2. CLASS SKILL POOLS
+    // Rule: Actives unlocked via leveling are kept. Item-based Class actives are forgotten if overwritten.
+    // -------------------------------------------------------------------
+
+    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Class")
+    TMap<ENebulaSkillSlot, UNebulaSkillBase*> EquippedClassActives;
+
+    // Only holds Class Actives unlocked naturally via leveling (so they aren't forgotten)
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Skills|Class")
+    TArray<TSubclassOf<UNebulaSkillBase>> UnlockedClassActives;
+
+    // Class Passives
+    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Class")
+    TArray<UNebulaSkillBase*> EquippedClassPassives;
+
+    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Class")
+    TArray<UNebulaSkillBase*> UnlockedClassPassives;
+
+    // The currently equipped Class Template
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Progression")
+    UNebulaClassTemplate* CurrentClass;
+
+    // Current level of the equipped class
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Progression")
+    int32 CurrentClassLevel = 1;
+
+    // Safely swaps the player's class, clears old skills, and grants the new ones
+    UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Progression")
+    void EquipNewClass(UNebulaClassTemplate* NewClassTemplate, int32 StartingLevel = 1);
+
+    // -------------------------------------------------------------------
+    // 3. ESSENCE SKILL POOLS
+    // Rule: 4 Actives, 1 Permanent Passive (No slots needed)
+    // -------------------------------------------------------------------
+
+    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Essence")
+    TMap<ENebulaSkillSlot, UNebulaSkillBase*> EquippedEssenceActives;
+
+    // The single, permanently active strong passive from the Essence
+    UPROPERTY(VisibleAnywhere, Instanced, BlueprintReadOnly, Category = "Nebula Skills|Essence")
+    UNebulaSkillBase* ActiveEssencePassive;
+
+    // The currently equipped Essence Template
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Progression")
+    UNebulaEssenceTemplate* CurrentEssence;
+
+    // Checks the Class Template's unlock schedules against the current level
+    UFUNCTION(BlueprintCallable, Category = "Nebula Progression")
+    void EvaluateLevelUpUnlocks();
+
+    // Attempts to learn a skill from an item. Returns true if successful, false if restricted or slots are full.
+    UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Learning")
+    bool LearnSkillFromItem(TSubclassOf<UNebulaSkillBase> SkillToLearn, const TArray<UNebulaClassTemplate*>& AllowedClasses);
+
+    // -------------------------------------------------------------------
+    // UI HELPER FUNCTIONS
+    // -------------------------------------------------------------------
+
+    UFUNCTION(BlueprintPure, Category = "Nebula Skills|UI")
+    TArray<TSubclassOf<UNebulaSkillBase>> GetUnlockedClassActives() const { return UnlockedClassActives; }
+
+    UFUNCTION(BlueprintPure, Category = "Nebula Skills|UI")
+    TArray<UNebulaSkillBase*> GetUnlockedClassPassives() const { return UnlockedClassPassives; }
+
+    UFUNCTION(BlueprintPure, Category = "Nebula Skills|UI")
+    TMap<ENebulaSkillSlot, UNebulaSkillBase*> GetEquippedClassActives() const { return EquippedClassActives; }
+
+    UFUNCTION(BlueprintPure, Category = "Nebula Skills|UI")
+    TArray<UNebulaSkillBase*> GetEquippedClassPassives() const { return EquippedClassPassives; }
+
+    // -------------------------------------------------------------------
+    // DEBUG / TESTING
+    // -------------------------------------------------------------------
+
+    // Use this to instantly level up and test if your UI populates!
+    UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Debug")
+    void Debug_AddClassLevels(int32 LevelsToAdd);
+
+private:
+    // Helper to automatically find an empty face-button slot and equip the skill
+    bool AutoEquipNewSkill(UNebulaSkillBase* NewSkill, TMap<ENebulaSkillSlot, UNebulaSkillBase*>& TargetMap);
 };

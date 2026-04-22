@@ -83,26 +83,82 @@ protected:
 
 
 	// --- INPUT ACTIONS ---
+	// Left bumper
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* HotbarModifierAction; // The Left Bumper
+	UInputAction* HotbarModifierAction; 
+
+	// New RB Modifier Action (Class Skills)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* ClassHotbarModifierAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* SlotFaceTopAction; // Y / Triangle
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SlotFaceLeftAction; // X / Square
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SlotFaceRightAction; // B / Circle
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SlotFaceBottomAction; // A / Cross
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	UInputAction* SlotDPadUpAction; // Up on D-Pad
 
-	// --- INPUT FUNCTIONS ---
-	void HotbarModifierStarted();
-	void HotbarModifierCompleted();
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SlotDPadDownAction; // Down on D-Pad
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SlotDPadLeftAction; // Left on D-Pad
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UInputAction* SlotDPadRightAction; // Right on D-Pad
+
+	// Tracks which bumper is currently being held
+    UPROPERTY(BlueprintReadWrite, Category = "Nebula Skills")
+    ENebulaSkillCategory CurrentHotbarCategory = ENebulaSkillCategory::Normal;
+
+    // --- Modifier Inputs ---
+    // Bind these to your LB (Normal Skills) Input Action Triggered/Completed
+    void Input_LB_Started();
+    void Input_LB_Completed();
+
+    // Bind these to your RB (Class Skills) Input Action Triggered/Completed
+    void Input_RB_Started();
+    void Input_RB_Completed();
+
+    // Make sure your Blueprint event can accept the category so the UI knows which skills to draw!
+    UFUNCTION(BlueprintImplementableEvent, Category = "Nebula Skills")
+    void OnToggleCrossHotbar(bool bShow, ENebulaSkillCategory Category);
 
 	// We pass in boolean parameters to determine if it was a Tap or a Hold
 	void Input_FaceTop_Tap();
 	void Input_FaceTop_Hold();
 
+	void Input_FaceLeft_Tap();
+	void Input_FaceLeft_Hold();
+
+	void Input_FaceBottom_Tap();
+	void Input_FaceBottom_Hold();
+
+	void Input_FaceRight_Tap();
+	void Input_FaceRight_Hold();
+
 	// D-Pad Functions
 	void Input_DPadUp_Tap(); 
 	void Input_DPadUp_Hold();
+
+	void Input_DPadDown_Tap();
+	void Input_DPadDown_Hold();
+
+	void Input_DPadLeft_Tap();
+	void Input_DPadLeft_Hold();
+
+	void Input_DPadRight_Tap();
+	void Input_DPadRight_Hold();
+
+
 			
 
 protected:
@@ -178,11 +234,6 @@ public:
 	// Helper to unequip the current weapon
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	void UnequipWeapon();
-
-	// --- UI EVENTS FOR BLUEPRINTS ---
-	// Blueprints will listen for this to play the fade-in/fade-out animation of the Cross-Hotbar
-	UFUNCTION(BlueprintImplementableEvent, Category = "Nebula UI")
-	void OnToggleCrossHotbar(bool bIsOpen);
 
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 

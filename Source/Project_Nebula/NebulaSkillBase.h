@@ -8,6 +8,14 @@
 
 class AProject_NebulaCharacter;
 
+UENUM(BlueprintType)
+enum class ENebulaSkillCategory : uint8
+{
+    Normal      UMETA(DisplayName = "Normal Skill"),
+    Class       UMETA(DisplayName = "Class Skill"),
+    Essence     UMETA(DisplayName = "Essence Skill")
+};
+
 UCLASS(Blueprintable, Abstract, DefaultToInstanced, EditInlineNew)
 class PROJECT_NEBULA_API UNebulaSkillBase : public UObject
 {
@@ -23,6 +31,14 @@ public:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Info")
     UAnimMontage* CastMontage;
+
+    // Inside UNebulaSkillBase class:
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Info")
+    ENebulaSkillCategory SkillCategory = ENebulaSkillCategory::Normal;
+
+    // True if this is a passive skill, False if it is an active skill that goes on the cross-hotbar
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Info")
+    bool bIsPassive = false;
 
     // Called on Tap
     virtual void ExecuteSkill(AProject_NebulaCharacter* Caster);
