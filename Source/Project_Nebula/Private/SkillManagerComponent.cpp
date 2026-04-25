@@ -135,7 +135,7 @@ bool USkillManagerComponent::EquipPassiveSkill(TSubclassOf<UNebulaSkillBase> Pas
         break;
 
     case ENebulaSkillCategory::Class:
-        // Could check CurrentClass->MaxPassiveSkillSlots here!
+        if (EquippedClassPassives.Num() >= 10) return false; // Optional cap check
         EquippedClassPassives.Add(NewPassive);
         break;
 
@@ -348,6 +348,8 @@ void USkillManagerComponent::EquipNewClass(UNebulaClassTemplate* NewClassTemplat
     UnlockedClassActives.Empty();
     UnlockedClassPassives.Empty();
 
+    EquippedClassPassives.Init(nullptr, 10);
+
     // 2. Assign the new Class and Level
     CurrentClass = NewClassTemplate;
     CurrentClassLevel = StartingLevel; // In the future, you could load their saved level for this specific class
@@ -374,4 +376,53 @@ void USkillManagerComponent::Debug_AddClassLevels(int32 LevelsToAdd)
 
     // Force the component to check for new skills!
     EvaluateLevelUpUnlocks();
+}
+
+bool USkillManagerComponent::OverwritePassiveSlot(ENebulaSkillCategory Category, int32 SlotIndex, TSubclassOf<UNebulaSkillBase> NewPassiveClass)
+{
+    if (!NewPassiveClass || SlotIndex < 0 || SlotIndex >= 10) return false;
+
+    UNebulaSkillBase* NewPassive = NewObject<UNebulaSkillBase>(this, NewPassiveClass);
+
+    if (Category == ENebulaSkillCategory::Normal)
+    {
+        // We simply overwrite the index. We DO NOT add the old one back to UnlockedNormalPassives anymore!
+        EquippedNormalPassives[SlotIndex] = NewPassive;
+    }
+    else if (Category == ENebulaSkillCategory::Class)
+    {
+        EquippedClassPassives[SlotIndex] = NewPassive;
+    }
+
+    return true;
+}
+
+bool USkillManagerComponent::IsClassActiveEquipped(TSubclassOf<UNebulaSkillBase> SkillToCheck) const
+{
+    if (!SkillToCheck) return false;
+
+    // Loop through the TMap. 'Pair.Key' is the Slot, 'Pair.Value' is the Skill Object.
+    for (const auto& Pair : EquippedClassActives)
+    {
+        // If the slot has a skill, and its class matches the one we are checking, return true!
+        if (Pair.Value && Pair.Value->GetClass() == SkillToCheck)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool USkillManagerComponent::IsClassPassiveEquipped(TSubclassOf<UNebulaSkillBase> SkillToCheck) const
+{
+    if (!SkillToCheck) return false;
+
+    for (UNebulaSkillBase* Passive : EquippedClassPassives)
+    {
+        if (Passive && Passive->GetClass() == SkillToCheck)
+        {
+            return true;
+        }
+    }
+    return false;
 }

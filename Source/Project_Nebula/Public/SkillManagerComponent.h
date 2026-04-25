@@ -60,11 +60,17 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Execution")
     void ExecuteSkillInSlot(ENebulaSkillCategory Category, ENebulaSkillSlot Slot, bool bIsHold);
 
+    // Subject to remove
     UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Passives")
     bool EquipPassiveSkill(TSubclassOf<UNebulaSkillBase> PassiveClass);
 
+    // Subject to remove
     UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Passives")
     void UnequipPassiveSkill(ENebulaSkillCategory Category, int32 EquippedIndex);
+
+    // Safely overwrites a slot without changing the array size
+    UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Passives")
+    bool OverwritePassiveSlot(ENebulaSkillCategory Category, int32 SlotIndex, TSubclassOf<UNebulaSkillBase> NewPassiveClass);
 
     // -------------------------------------------------------------------
     // 2. CLASS SKILL POOLS
@@ -136,6 +142,14 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Nebula Skills|UI")
     TArray<UNebulaSkillBase*> GetEquippedClassPassives() const { return EquippedClassPassives; }
+
+    // Checks if an Active Skill is currently equipped in ANY slot
+    UFUNCTION(BlueprintPure, Category = "Nebula Skills|UI")
+    bool IsClassActiveEquipped(TSubclassOf<UNebulaSkillBase> SkillToCheck) const;
+
+    // Checks if a Passive Skill is currently equipped in ANY slot
+    UFUNCTION(BlueprintPure, Category = "Nebula Skills|UI")
+    bool IsClassPassiveEquipped(TSubclassOf<UNebulaSkillBase> SkillToCheck) const;
 
     // -------------------------------------------------------------------
     // DEBUG / TESTING
