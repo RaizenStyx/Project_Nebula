@@ -5,6 +5,7 @@
 #include "Components/ActorComponent.h"
 #include "WeaponDataTypes.h" 
 #include "EnemyStatsComponent.h"
+#include "NebulaClassTemplate.h"
 #include "PlayerStatsComponent.generated.h"
 
 
@@ -14,7 +15,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStaminaChangedSignature, float, 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnManaChangedSignature, float, CurrentMana, float, MaxMana);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAwakeTimerChangedSignature, float, CurrentAwakeTime);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelUpSignature, int32, NewLevel);
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnClassLevelUpSignature, int32, NewClassLevel);
 
 // Defines the player's chosen Essence
 UENUM(BlueprintType)
@@ -69,6 +70,18 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Primary")
     float Vigor;
 
+    // Core Base Stats (Permanent point allocations)
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Stats|Base")
+    float BasePhysicalProwess;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Stats|Base")
+    float BaseSynchronization;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Stats|Base")
+    float BaseAgility;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Stats|Base")
+    float BaseFortitude;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Stats|Base")
+    float BaseVigor;
+
     // -------------------------------------------------------------------
     // RESOURCE POOLS (DERIVED STATS)
     // -------------------------------------------------------------------
@@ -77,6 +90,10 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
     float MaxHealth;
+
+    // Derived Resource Pool
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
+    float MaxTotalResource;
 
     UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
     float CurrentStamina;
@@ -89,6 +106,22 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
     float MaxAwakeTimerMinutes;
+
+    // -------------------------------------------------------------------
+    // MAGIC & MANA SYSTEM
+    // -------------------------------------------------------------------
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Magic")
+    bool bIsManaUnlocked = false;
+
+    // Tracks how much the player has read/studied the book
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Magic")
+    float MagicStudyProgress = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
+    float CurrentMana = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
+    float MaxMana = 0.0f;
 
     // Variable for Armor. 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Armor")
@@ -112,6 +145,12 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Nebula Stats|Events")
     FOnAwakeTimerChangedSignature OnAwakeTimerChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Nebula Stats|Events")
+    FOnClassLevelUpSignature OnClassLevelUp;
+
+    UPROPERTY(BlueprintAssignable, Category = "Nebula Stats|Events")
+    FOnLevelUpSignature OnMainLevelUp;
 
     // -------------------------------------------------------------------
     // CORE FUNCTIONS
@@ -178,9 +217,6 @@ public:
     UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
     int32 UnspentStatPoints;
 
-    UPROPERTY(BlueprintAssignable, Category = "Nebula Stats|Events")
-    FOnLevelUpSignature OnMainLevelUp;
-
     // The Essence chosen at the start of the game
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Progression")
     EEssenceType PlayerEssence;
@@ -188,9 +224,8 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Progression")
     ENebulaStatType StatType;
 
-    // Functions
-    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Methods")
-    void AddExperience(float RawXP);
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
+	UNebulaClassTemplate* CurrentClassTemplate;
 
     UFUNCTION(BlueprintPure, Category = "Nebula Stats|Methods")
     float CalculateRequiredXP(int32 TargetLevel) const;
@@ -203,30 +238,31 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Methods")
     bool SpendStatPoint(ENebulaStatType StatToUpgrade);
 
-
-    // -------------------------------------------------------------------
-// MAGIC & MANA SYSTEM
-// -------------------------------------------------------------------
-    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Magic")
-    bool bIsManaUnlocked = false;
-
-    // Tracks how much the player has read/studied the book
-    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Magic")
-    float MagicStudyProgress = 0.0f;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
-    float CurrentMana = 0.0f;
-
-    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
-    float MaxMana = 0.0f;
-
     // -------------------------------------------------------------------
     // METHODS
     // -------------------------------------------------------------------
     UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Magic")
     void StudyMagicBook(float AwakeTimeCost, float ProgressAmount);
 
-    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Magic")
-    void UnlockManaSystem();
+    // Add these to your UPlayerStatsComponent.h under the Resource Pools section
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Resources")
+    float StaminaSplitRatio = 1.0f; // Defaults to 100%
 
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Magic")
+    float ManaSplitRatio = 0.0f; // Defaults to 0%
+
+    // Update your Unlock function to take parameters
+    UFUNCTION(BlueprintCallable, Category = "Nebula Stats|Magic")
+    void UnlockManaSystem(float InManaRatio, float InStaminaRatio);
+
+    // Functions
+    UFUNCTION(BlueprintCallable, Category = "Nebula Progression")
+    void ApplyClassStats(UNebulaClassTemplate* NewClass, int32 InClassLevel);
+
+    UFUNCTION(BlueprintCallable, Category = "Nebula Progression")
+    void AddXP(float RawXP);
+
+private:
+    void CheckMainLevelUp();
+    void CheckClassLevelUp();
 };

@@ -1,10 +1,34 @@
 #include "SkillManagerComponent.h"
 #include "../Project_NebulaCharacter.h"
+#include "../PlayerStatsComponent.h"
 #include "NebulaClassTemplate.h"
 
 USkillManagerComponent::USkillManagerComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
+}
+
+void USkillManagerComponent::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // Find the stats component on the same character
+    UPlayerStatsComponent* PlayerStats = GetOwner()->FindComponentByClass<UPlayerStatsComponent>();
+    if (PlayerStats)
+    {
+        // Whenever the stats component levels up the class, trigger our local unlock function
+        PlayerStats->OnClassLevelUp.AddDynamic(this, &USkillManagerComponent::HandleClassLevelUp);
+    }
+}
+
+// Ensure this is marked as a UFUNCTION() in your USkillManagerComponent.h
+void USkillManagerComponent::HandleClassLevelUp(int32 NewClassLevel)
+{
+    // Update the local cache of the level
+    CurrentClassLevel = NewClassLevel;
+
+    // Check the Data Asset for new Identity, 1-Star, or 2-Star abilities
+    EvaluateLevelUpUnlocks();
 }
 
 bool USkillManagerComponent::EquipActiveSkill(TSubclassOf<UNebulaSkillBase> SkillClass, ENebulaSkillSlot Slot)
@@ -108,10 +132,12 @@ void USkillManagerComponent::ExecuteSkillInSlot(ENebulaSkillCategory Category, E
     {
         if (bIsHold)
         {
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Executing HOLD version of %s"), *SkillToExecute->SkillName.ToString()));
             SkillToExecute->ExecuteHoldSkill(Caster);
         }
         else
         {
+            GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Executing %s"), *SkillToExecute->SkillName.ToString()));
             SkillToExecute->ExecuteSkill(Caster);
         }
     }
@@ -314,7 +340,6 @@ bool USkillManagerComponent::AutoEquipNewSkill(UNebulaSkillBase* NewSkill, TMap<
         if (!TargetMap.Contains(Slot))
         {
             TargetMap.Add(Slot, NewSkill);
-            UE_LOG(LogTemp, Log, TEXT("Auto-equipped skill %s"), *NewSkill->GetName());
             return true; // Successfully equipped
         }
     }
@@ -328,54 +353,59 @@ bool USkillManagerComponent::AutoEquipNewSkill(UNebulaSkillBase* NewSkill, TMap<
 
 void USkillManagerComponent::EquipNewClass(UNebulaClassTemplate* NewClassTemplate, int32 StartingLevel)
 {
-    // Safety checks
-    if (!NewClassTemplate) return;
+    if (!NewClassTemplate || CurrentClass == NewClassTemplate) return;
 
-    // Don't do anything if they are already this class
-    if (CurrentClass == NewClassTemplate) return;
-
-    // Optional: If you have Legendary classes that permanently lock, check that here!
     if (CurrentClass && CurrentClass->bIsPermanentlyLocked)
     {
         UE_LOG(LogTemp, Warning, TEXT("Cannot change class. Current class is permanently locked!"));
         return;
     }
 
-    // 1. Wipe the old Class skills clean
-    // We intentionally leave NORMAL and ESSENCE skills alone!
     EquippedClassActives.Empty();
     EquippedClassPassives.Empty();
     UnlockedClassActives.Empty();
     UnlockedClassPassives.Empty();
-
     EquippedClassPassives.Init(nullptr, 10);
 
-    // 2. Assign the new Class and Level
     CurrentClass = NewClassTemplate;
-    CurrentClassLevel = StartingLevel; // In the future, you could load their saved level for this specific class
+    CurrentClassLevel = StartingLevel;
 
-    // 3. Immediately evaluate unlocks!
-    // This will run through the new template and automatically grant all the baseline skills 
-    // for their starting level, so they aren't left with an empty spellbook.
+    // --- DICTATE RESOURCE RATIOS BEFORE STATS ARE APPLIED ---
+    if (UPlayerStatsComponent* StatsComp = GetOwner()->FindComponentByClass<UPlayerStatsComponent>())
+    {
+        ENebulaResourceType ResType = CurrentClass->ResourceType;
+
+        if (ResType == ENebulaResourceType::PureMana)
+        {
+            StatsComp->UnlockManaSystem(0.75f, 0.25f);
+        }
+        else if (ResType == ENebulaResourceType::Hybrid)
+        {
+            StatsComp->UnlockManaSystem(0.50f, 0.50f);
+        }
+        else // Pure Physical
+        {
+            // If mana was previously unlocked via the book, ensure they keep their baseline 25/75 split
+            if (StatsComp->bIsManaUnlocked)
+            {
+                StatsComp->UnlockManaSystem(0.25f, 0.75f);
+            }
+            else
+            {
+                // Otherwise, they stay 100% physical
+                StatsComp->StaminaSplitRatio = 1.0f;
+                StatsComp->ManaSplitRatio = 0.0f;
+                StatsComp->CalculateDerivedStats();
+            }
+        }
+
+        // Now that the pool ratios are correctly set, apply the stat modifiers
+        StatsComp->ApplyClassStats(CurrentClass, CurrentClassLevel);
+    }
+
     EvaluateLevelUpUnlocks();
 
     UE_LOG(LogTemp, Log, TEXT("Successfully changed class to a new template!"));
-}
-
-
-void USkillManagerComponent::Debug_AddClassLevels(int32 LevelsToAdd)
-{
-    if (!CurrentClass)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Cannot level up: No class equipped!"));
-        return;
-    }
-
-    CurrentClassLevel += LevelsToAdd;
-    UE_LOG(LogTemp, Log, TEXT("Class Level is now: %d"), CurrentClassLevel);
-
-    // Force the component to check for new skills!
-    EvaluateLevelUpUnlocks();
 }
 
 bool USkillManagerComponent::OverwritePassiveSlot(ENebulaSkillCategory Category, int32 SlotIndex, TSubclassOf<UNebulaSkillBase> NewPassiveClass)

@@ -119,6 +119,15 @@ void AProject_NebulaCharacter::NotifyControllerChanged()
 	}
 }
 
+
+void AProject_NebulaCharacter::Jump()
+{
+	if (bCrossbarIsVisible) return;
+	// You can add custom logic here if needed before calling the base jump functionality
+	Super::Jump();
+
+}
+
 void AProject_NebulaCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	// Set up action bindings
@@ -139,9 +148,6 @@ void AProject_NebulaCharacter::SetupPlayerInputComponent(UInputComponent* Player
 
 		// Dodging & Crouching
 		EnhancedInputComponent->BindAction(DodgeCrouchAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::DodgeOrCrouch);
-
-
-		
 		
 		// The Left Bumper (Normal Skills Modifier)
 		EnhancedInputComponent->BindAction(HotbarModifierAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_LB_Started);
@@ -233,6 +239,7 @@ void AProject_NebulaCharacter::Look(const FInputActionValue& Value)
 
 void AProject_NebulaCharacter::LightAttack(const FInputActionValue& Value)
 {
+	if (bCrossbarIsVisible) return;
 	// Future LitRPG damage scaling and animation triggers will go here.
 	// For now, print to screen so we know the button works.
 	//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Light Attack Triggered!"));
@@ -240,6 +247,7 @@ void AProject_NebulaCharacter::LightAttack(const FInputActionValue& Value)
 
 void AProject_NebulaCharacter::DodgeOrCrouch(const FInputActionValue& Value)
 {
+	if (bCrossbarIsVisible) return;
 	// Check if the character is currently moving faster than a near-stop
 	if (GetCharacterMovement()->Velocity.SizeSquared2D() > 100.f)
 	{

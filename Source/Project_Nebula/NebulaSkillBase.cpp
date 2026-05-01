@@ -20,7 +20,14 @@ bool UNebulaSkillBase::CanCast(AProject_NebulaCharacter* Caster) const
     UPlayerStatsComponent* Stats = Caster->FindComponentByClass<UPlayerStatsComponent>();
     if (Stats)
     {
-        return Stats->CurrentStamina >= ResourceCost;
+        if (bIsManaType)
+        {
+            return Stats->CurrentMana >= ResourceCost;
+        }
+        else
+        {
+            return Stats->CurrentStamina >= ResourceCost;
+        }
     }
     return false;
 }
@@ -32,7 +39,13 @@ void UNebulaSkillBase::ConsumeResources(AProject_NebulaCharacter* Caster)
     UPlayerStatsComponent* Stats = Caster->FindComponentByClass<UPlayerStatsComponent>();
     if (Stats)
     {
-        // Subtract the cost from the unified Stamina/Mana pool
-        Stats->ModifyStamina(-ResourceCost);
+        if (bIsManaType)
+        {
+            Stats->ModifyMana(-ResourceCost);
+        }
+        else
+        {
+            Stats->ModifyStamina(-ResourceCost);
+        }
     }
 }

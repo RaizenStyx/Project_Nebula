@@ -9,11 +9,18 @@ UPlayerStatsComponent::UPlayerStatsComponent()
     PrimaryComponentTick.bCanEverTick = false;
 
     // Initialize Base RPG Attributes
-    PhysicalProwess = 10.0f;
-    Synchronization = 10.0f;
-    Agility = 10.0f;
-    Fortitude = 10.0f;
-    Vigor = 10.0f;
+    BasePhysicalProwess = 10.0f;
+    BaseSynchronization = 10.0f;
+    BaseAgility = 10.0f;
+    BaseFortitude = 10.0f;
+    BaseVigor = 10.0f;
+
+    // Set current to base
+    PhysicalProwess = BasePhysicalProwess;
+    Synchronization = BaseSynchronization;
+    Agility = BaseAgility;
+    Fortitude = BaseFortitude;
+    Vigor = BaseVigor;
 
     // Initialize Resources (overwritten by CalculateDerivedStats in BeginPlay, but good practice)
     MaxHealth = 100.0f;
@@ -30,13 +37,12 @@ UPlayerStatsComponent::UPlayerStatsComponent()
     CurrentMainXP = 0.0f;
     NextLevelMainXP = 100.0f; // Base requirement for Lv 1 -> 2 [cite: 122]
 
-    ClassLevel = 0; // Starts at 0 until unlocked at Main Level 25 [cite: 100]
+    ClassLevel = 0; // Starts at 0 until unlocked at Main Level 10 [cite: 100]
     CurrentClassXP = 0.0f;
     NextLevelClassXP = 50.0f; // Class requires exactly 50% of Main Level XP [cite: 123]
 
     ClassXPSplitPercentage = 0.5f; // Default to 50/50 split 
     UnspentStatPoints = 0;
-
 }
 
 void UPlayerStatsComponent::BeginPlay()
@@ -83,24 +89,29 @@ float UPlayerStatsComponent::GetEffectiveStatValue(float BaseStatValue) const
 
 void UPlayerStatsComponent::CalculateDerivedStats()
 {
-    // 1. Calculate Health from Fortitude (+15 HP per point)
+    // Cache percentages
+    float StaminaPct = (MaxStamina > 0.0f) ? (CurrentStamina / MaxStamina) : 1.0f;
+    float ManaPct = (MaxMana > 0.0f) ? (CurrentMana / MaxMana) : 1.0f;
+
+    // Health & Resource Totals
     float EffectiveFortitude = GetEffectiveStatValue(Fortitude);
-    float BaseHP = 100.0f;
-    MaxHealth = BaseHP + (EffectiveFortitude * 15.0f);
+    MaxHealth = 100.0f + (EffectiveFortitude * 15.0f);
 
-    // 2. Calculate Stamina from Vigor (+10 Stamina per point)
     float EffectiveVigor = GetEffectiveStatValue(Vigor);
-    float BaseStamina = 100.0f;
-    MaxStamina = BaseStamina + (EffectiveVigor * 10.0f);
+    MaxTotalResource = 100.0f + (EffectiveVigor * 10.0f);
 
-    // 3. Calculate Awake Timer from Vigor (+5 mins per point)
-    // Base is 16 In-Game Hours (960 minutes)
-    float BaseAwakeMinutes = 960.0f;
-    MaxAwakeTimerMinutes = BaseAwakeMinutes + (EffectiveVigor * 5.0f);   
+    // Apply the dynamically stored split ratios
+    MaxStamina = MaxTotalResource * StaminaSplitRatio;
+    MaxMana = MaxTotalResource * ManaSplitRatio;
 
-    // Safety clamp to ensure current values don't exceed new maximums if stats are recalculated mid-game
+    // Reapply cached percentages
     CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, MaxHealth);
-    CurrentStamina = FMath::Clamp(CurrentStamina, 0.0f, MaxStamina);
+    CurrentStamina = FMath::Clamp(MaxStamina * StaminaPct, 0.0f, MaxStamina);
+    CurrentMana = FMath::Clamp(MaxMana * ManaPct, 0.0f, MaxMana);
+
+    // Time logic
+    float BaseAwakeMinutes = 960.0f;
+    MaxAwakeTimerMinutes = BaseAwakeMinutes + (EffectiveVigor * 5.0f);
     CurrentAwakeTimerMinutes = FMath::Clamp(CurrentAwakeTimerMinutes, 0.0f, MaxAwakeTimerMinutes);
 }
 
@@ -133,6 +144,19 @@ void UPlayerStatsComponent::ModifyAwakeTimer(float Amount)
     CurrentAwakeTimerMinutes = FMath::Clamp(CurrentAwakeTimerMinutes + Amount, 0.0f, MaxAwakeTimerMinutes);
 
     OnAwakeTimerChanged.Broadcast(CurrentAwakeTimerMinutes);
+}
+
+void UPlayerStatsComponent::ModifyMana(float Amount)
+{
+    // Don't allow modification if the system isn't unlocked
+    if (!bIsManaUnlocked) return;
+
+    CurrentMana = FMath::Clamp(CurrentMana + Amount, 0.0f, MaxMana);
+
+    OnManaChanged.Broadcast(CurrentMana, MaxMana);
+
+    // FUTURE: Add your "Mana Burn" 5-second freeze logic here 
+    // if (CurrentMana <= 0.0f) { ... }
 }
 
 float UPlayerStatsComponent::CalculateOutgoingPhysicalDamage(float BaseWeaponDamage, ETechniqueStyle TechStyle, EEnemyArchetype TargetArchetype) const
@@ -287,18 +311,18 @@ void UPlayerStatsComponent::AutoAllocateEssenceStats()
     switch (PlayerEssence)
     {
     case EEssenceType::Fighting:
-        PhysicalProwess += 2.0f; // Primary [cite: 140]
-        Agility += 1.0f;         // Secondary [cite: 140]
+        BasePhysicalProwess += 2.0f; // Primary [cite: 140]
+        BaseAgility += 1.0f;         // Secondary [cite: 140]
         break;
 
     case EEssenceType::Evasive:
-        Agility += 2.0f;         // Primary [cite: 140]
-        Synchronization += 1.0f; // Secondary [cite: 141]
+        BaseAgility += 2.0f;         // Primary [cite: 140]
+        BaseSynchronization += 1.0f; // Secondary [cite: 141]
         break;
 
     case EEssenceType::Survivability:
-        Vigor += 2.0f;           // Primary [cite: 141]
-        Fortitude += 1.0f;       // Secondary [cite: 141]
+        BaseVigor += 2.0f;           // Primary [cite: 141]
+        BaseFortitude += 1.0f;       // Secondary [cite: 141]
         break;
 
     case EEssenceType::None:
@@ -311,93 +335,24 @@ void UPlayerStatsComponent::AutoAllocateEssenceStats()
     CalculateDerivedStats();
 }
 
-void UPlayerStatsComponent::AddExperience(float RawXP)
-{
-    // PLACEHOLDER: Future Area Level scaling math will go here!
-    float FinalXP = RawXP;
-
-    // Calculate the distribution 
-    float XPForClass = FinalXP * ClassXPSplitPercentage;
-    float XPForMain = FinalXP - XPForClass;
-
-    // Hard Cap Rule: Class Level cannot exceed Main Level 
-    // If we are capped (or haven't unlocked a class yet at Lv 0), redirect all XP to Main [cite: 125]
-    if (ClassLevel >= MainLevel || ClassLevel == 0)
-    {
-        XPForMain = FinalXP;
-        XPForClass = 0.0f;
-    }
-
-    CurrentMainXP += XPForMain;
-    CurrentClassXP += XPForClass;
-
-    // Check for Main Level Up
-    while (CurrentMainXP >= NextLevelMainXP)
-    {
-        CurrentMainXP -= NextLevelMainXP;
-        MainLevel++;
-        
-        // Grant the 2 Free Allocation points for the player to spend manually 
-        UnspentStatPoints += 2; 
-        
-        // Trigger the automatic +2/+1 Essence allocation
-        AutoAllocateEssenceStats();
-
-        NextLevelMainXP = CalculateRequiredXP(MainLevel);
-        
-        // Tell the UI we leveled up!
-        OnMainLevelUp.Broadcast(MainLevel);
-    }
-
-    // Check for Class Level Up
-    if (ClassLevel > 0)
-    {
-        while (CurrentClassXP >= NextLevelClassXP && ClassLevel < MainLevel)
-        {
-            CurrentClassXP -= NextLevelClassXP;
-            ClassLevel++;
-            USkillManagerComponent* SkillManager = GetOwner()->FindComponentByClass<USkillManagerComponent>();
-            if (SkillManager)
-            {
-                SkillManager->EvaluateLevelUpUnlocks();
-            }
-            // Class XP requirement is always exactly 50% of the Main Level requirement [cite: 123]
-            NextLevelClassXP = CalculateRequiredXP(ClassLevel) * 0.5f;
-        }
-    }
-}
-
 bool UPlayerStatsComponent::SpendStatPoint(ENebulaStatType StatToUpgrade)
 {
-    // Fail-safe: Don't do anything if they have no points
-    if (UnspentStatPoints <= 0)
-    {
-        return false;
-    }
+    if (UnspentStatPoints <= 0) return false;
 
-    // Add +1 to the requested stat
+    // IMPORTANT: Add to the BASE stat, not the temporary one
     switch (StatToUpgrade)
     {
-    case ENebulaStatType::Prowess:
-        PhysicalProwess += 1.0f;
-        break;
-    case ENebulaStatType::Synchronization:
-        Synchronization += 1.0f;
-        break;
-    case ENebulaStatType::Agility:
-        Agility += 1.0f;
-        break;
-    case ENebulaStatType::Fortitude:
-        Fortitude += 1.0f;
-        break;
-    case ENebulaStatType::Vigor:
-        Vigor += 1.0f;
-        break;
+    case ENebulaStatType::Prowess: BasePhysicalProwess += 1.0f; break;
+    case ENebulaStatType::Synchronization: BaseSynchronization += 1.0f; break;
+    case ENebulaStatType::Agility: BaseAgility += 1.0f; break;
+    case ENebulaStatType::Fortitude: BaseFortitude += 1.0f; break;
+    case ENebulaStatType::Vigor: BaseVigor += 1.0f; break;
     }
 
-    // Deduct the point and recalculate health/stamina
     UnspentStatPoints -= 1;
-    CalculateDerivedStats();
+
+    // Reapply class stats to instantly reflect the new base + class bonuses
+    ApplyClassStats(CurrentClassTemplate, ClassLevel);
 
     return true;
 }
@@ -416,35 +371,140 @@ void UPlayerStatsComponent::StudyMagicBook(float AwakeTimeCost, float ProgressAm
     // 3. Check for threshold. Passing 100.0f for ProgressAmount will make this instant for now.
     if (MagicStudyProgress >= 100.0f)
     {
-        UnlockManaSystem();
+        UnlockManaSystem(0.25f, 0.75f);
     }
 }
 
-void UPlayerStatsComponent::UnlockManaSystem()
+void UPlayerStatsComponent::UnlockManaSystem(float InManaRatio, float InStaminaRatio)
 {
     bIsManaUnlocked = true;
 
-    // Initialize the separated Mana pool. 
-    // Vigor directly governs the mental capacity for this new pool[cite: 52].
-    float EffectiveVigor = GetEffectiveStatValue(Vigor);
+    ManaSplitRatio = InManaRatio;
+    StaminaSplitRatio = InStaminaRatio;
 
-    // Example Formula: 50 Base Mana + 10 per Vigor point
-    MaxMana = 50.0f + (EffectiveVigor * 10.0f);
-    CurrentMana = MaxMana;
+    // Process the math with the new ratios
+    CalculateDerivedStats();
 
-    // If the act of splitting the hybrid pool permanently reduces maximum physical stamina, 
-    // you would deduct a percentage of MaxStamina here and call OnStaminaChanged.Broadcast().
+    // Broadcast the changes so the UI catches the split immediately
+    OnManaChanged.Broadcast(CurrentMana, MaxMana);
+    OnStaminaChanged.Broadcast(CurrentStamina, MaxStamina);
 }
 
-void UPlayerStatsComponent::ModifyMana(float Amount)
+
+// New Add XP function. Old one may be removed after removing it from blueprints.
+void UPlayerStatsComponent::AddXP(float RawXP)
 {
-    // Don't allow modification if the system isn't unlocked
-    if (!bIsManaUnlocked) return;
+    // Hard cap constraint: Class Level cannot exceed Main Level
+    if (ClassLevel >= MainLevel)
+    {
+        CurrentMainXP += RawXP;
+    }
+    else
+    {
+        float ClassXP = RawXP * ClassXPSplitPercentage;
+        float MainXP = RawXP - ClassXP;
 
-    CurrentMana = FMath::Clamp(CurrentMana + Amount, 0.0f, MaxMana);
+        CurrentClassXP += ClassXP;
+        CurrentMainXP += MainXP;
 
-    OnManaChanged.Broadcast(CurrentMana, MaxMana);
+        CheckClassLevelUp();
+    }
 
-    // FUTURE: Add your "Mana Burn" 5-second freeze logic here 
-    // if (CurrentMana <= 0.0f) { ... }
+    CheckMainLevelUp();
+}
+
+
+void UPlayerStatsComponent::ApplyClassStats(UNebulaClassTemplate* NewClass, int32 InClassLevel)
+{
+    // 1. Reset to permanent baseline
+    PhysicalProwess = BasePhysicalProwess;
+    Synchronization = BaseSynchronization;
+    Agility = BaseAgility;
+    Fortitude = BaseFortitude;
+    Vigor = BaseVigor;
+
+    if (NewClass)
+    {
+        // 2. Determine Star Rank Multiplier
+        int32 StatMultiplier = (NewClass->StarRank == ENebulaStarRank::ThreeStar) ? 2 : 1;
+        int32 LevelBonus = StatMultiplier * InClassLevel;
+
+        // 3. Apply class base additions and level scaling
+        // (You can filter LevelBonus into a specific stat depending on Essence, or spread it)
+        PhysicalProwess += NewClass->BaseStatAdditions.ProwessBonus;
+        Synchronization += NewClass->BaseStatAdditions.SynchronizationBonus;
+        Agility += NewClass->BaseStatAdditions.AgilityBonus;
+        Fortitude += NewClass->BaseStatAdditions.FortitudeBonus;
+        Vigor += NewClass->BaseStatAdditions.VigorBonus;
+
+        if (NewClass->ResourceType == ENebulaResourceType::PureMana)
+        {
+            Synchronization += LevelBonus;
+        }
+        else
+        {
+            PhysicalProwess += LevelBonus;
+        }
+    }
+
+    // 4. Recalculate derived pools with the newly calculated Vigor and Fortitude
+    CalculateDerivedStats();
+}
+
+
+void UPlayerStatsComponent::CheckMainLevelUp()
+{
+    bool bLeveledUp = false;
+
+    while (CurrentMainXP >= NextLevelMainXP)
+    {
+        CurrentMainXP -= NextLevelMainXP;
+        MainLevel++;
+        bLeveledUp = true;
+
+        // Staged Exponential Curve Scaling
+        if (MainLevel <= 25) NextLevelMainXP *= 2.0f;
+        else if (MainLevel <= 50) NextLevelMainXP *= 3.0f;
+        else if (MainLevel <= 75) NextLevelMainXP *= 4.0f;
+        else NextLevelMainXP *= 5.0f;
+
+        UnspentStatPoints += 2;
+        AutoAllocateEssenceStats();
+    }
+
+    if (bLeveledUp)
+    {
+        OnMainLevelUp.Broadcast(MainLevel);
+        NextLevelClassXP = NextLevelMainXP * 0.5f; // Class XP strictly maps to 50% of Main
+        CalculateDerivedStats();
+    }
+}
+
+void UPlayerStatsComponent::CheckClassLevelUp()
+{
+	if (!CurrentClassTemplate) return; // Safety check
+    while (CurrentClassXP >= NextLevelClassXP && ClassLevel < MainLevel)
+    {
+        CurrentClassXP -= NextLevelClassXP;
+        ClassLevel++;
+
+        // Ensure synchronization of requirements
+        NextLevelClassXP = NextLevelMainXP * 0.5f;
+
+        // Apply the new stats internally
+        if (CurrentClassTemplate)
+        {
+            ApplyClassStats(CurrentClassTemplate, ClassLevel);
+        }
+
+        OnClassLevelUp.Broadcast(ClassLevel);
+    }
+
+    // If overflow forces the class level to hit the cap, redirect remaining Class XP back into Main XP
+    if (ClassLevel >= MainLevel && CurrentClassXP > 0.0f)
+    {
+        CurrentMainXP += CurrentClassXP;
+        CurrentClassXP = 0.0f;
+        CheckMainLevelUp(); // Trigger cascade check just in case the overflow forced a Main Level up
+    }
 }

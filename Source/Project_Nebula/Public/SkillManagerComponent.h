@@ -32,6 +32,11 @@ class PROJECT_NEBULA_API USkillManagerComponent : public UActorComponent
 public:
     USkillManagerComponent();
 
+protected:
+    virtual void BeginPlay() override;
+
+public:
+
     // -------------------------------------------------------------------
     // 1. NORMAL SKILL POOLS
     // Rule: Actives are forgotten if overwritten. Passives can be swapped.
@@ -96,7 +101,7 @@ public:
     UNebulaClassTemplate* CurrentClass;
 
     // Current level of the equipped class
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Progression")
+    UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Nebula Progression")
     int32 CurrentClassLevel = 1;
 
     // Safely swaps the player's class, clears old skills, and grants the new ones
@@ -151,13 +156,8 @@ public:
     UFUNCTION(BlueprintPure, Category = "Nebula Skills|UI")
     bool IsClassPassiveEquipped(TSubclassOf<UNebulaSkillBase> SkillToCheck) const;
 
-    // -------------------------------------------------------------------
-    // DEBUG / TESTING
-    // -------------------------------------------------------------------
-
-    // Use this to instantly level up and test if your UI populates!
-    UFUNCTION(BlueprintCallable, Category = "Nebula Skills|Debug")
-    void Debug_AddClassLevels(int32 LevelsToAdd);
+    UFUNCTION()
+    void HandleClassLevelUp(int32 NewClassLevel);
 
 private:
     // Helper to automatically find an empty face-button slot and equip the skill

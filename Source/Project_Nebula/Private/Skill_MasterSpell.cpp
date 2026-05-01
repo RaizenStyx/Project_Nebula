@@ -24,11 +24,14 @@ bool USkill_MasterSpell::MeetsClassRequirements(AProject_NebulaCharacter* Caster
 
 void USkill_MasterSpell::ExecuteSkill(AProject_NebulaCharacter* Caster)
 {
+
     if (!MeetsClassRequirements(Caster) || !CanCast(Caster)) return;
 
     ConsumeResources(Caster);
 
     if (CastMontage) Caster->PlayAnimMontage(CastMontage);
+
+    GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Cyan, TEXT("Trying to Execute Master Spell"));
 
     // Spawn the elemental projectile
     if (ProjectileClass && Caster->GetWorld())
@@ -40,6 +43,7 @@ void USkill_MasterSpell::ExecuteSkill(AProject_NebulaCharacter* Caster)
         SpawnParams.Instigator = Caster;
 
         Caster->GetWorld()->SpawnActor<ANebulaProjectile>(ProjectileClass, SpawnLoc, SpawnRot, SpawnParams);
+        GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Cyan, TEXT("Trying to spawn projectile"));
     }
 }
 

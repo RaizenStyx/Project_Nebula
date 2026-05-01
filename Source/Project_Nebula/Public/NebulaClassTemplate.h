@@ -8,9 +8,27 @@
 #include "../NebulaSkillBase.h"
 #include "NebulaClassTemplate.generated.h"
 
-/**
- * 
- */
+USTRUCT(BlueprintType)
+struct FClassStatBlock
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    float ProwessBonus = 0.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    float SynchronizationBonus = 0.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    float AgilityBonus = 0.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    float FortitudeBonus = 0.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    float VigorBonus = 0.0f;
+};
+
 UCLASS(BlueprintType, Blueprintable)
 class PROJECT_NEBULA_API UNebulaClassTemplate : public UPrimaryDataAsset
 {
@@ -54,5 +72,9 @@ public:
     // The ultimate EX Skill (unlocked at max level or special condition)
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Progression")
     TSubclassOf<UNebulaSkillBase> EXSkill;
+
+    // Inside UNebulaClassTemplate class:
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Class Stats")
+    FClassStatBlock BaseStatAdditions;
 	
 };

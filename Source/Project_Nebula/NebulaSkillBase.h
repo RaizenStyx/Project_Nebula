@@ -36,6 +36,9 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Info")
     ENebulaSkillCategory SkillCategory = ENebulaSkillCategory::Normal;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Info")
+    bool bIsManaType = false;
+    
     // True if this is a passive skill, False if it is an active skill that goes on the cross-hotbar
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Skill Info")
     bool bIsPassive = false;

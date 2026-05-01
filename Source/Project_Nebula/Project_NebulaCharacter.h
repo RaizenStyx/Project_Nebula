@@ -78,6 +78,8 @@ protected:
 	/** Called for context-sensitive dodge or crouch */
 	void DodgeOrCrouch(const FInputActionValue& Value);
 
+	void Jump();
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animations")
 	UAnimMontage* DodgeMontage;
 
@@ -240,6 +242,9 @@ public:
 	// I-frame state flag
 	UPROPERTY(BlueprintReadOnly, Category = "Combat")
 	bool bIsInvincible = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Skills")
+	bool bCrossbarIsVisible = false;
 
 	UFUNCTION()
 	void UseStudyBook();
