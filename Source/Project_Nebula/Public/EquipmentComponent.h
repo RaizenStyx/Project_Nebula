@@ -7,6 +7,7 @@
 #include "NebulaItemTypes.h"
 #include "EquipmentComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEquipmentChanged, EEquipmentSlot, ChangedSlot, FName, NewItemID);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT_NEBULA_API UEquipmentComponent : public UActorComponent
@@ -28,6 +29,10 @@ public:
 	// Unequips whatever is in the slot and returns its ID
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	FName UnequipItem(EEquipmentSlot TargetSlot);
+
+	// This is the actual megaphone we will use to shout to the UI
+	UPROPERTY(BlueprintAssignable, Category = "Nebula Combat|Events")
+	FOnEquipmentChanged OnEquipmentChanged;
 
 protected:
 	// Called when the game starts

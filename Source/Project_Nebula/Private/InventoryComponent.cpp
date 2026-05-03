@@ -237,9 +237,21 @@ void UInventoryComponent::UseItem(int32 SlotIndex)
             if (UPlayerStatsComponent* StatsComp = PlayerChar->FindComponentByClass<UPlayerStatsComponent>())
             {
                 // Uncomment these once your Heal/Restore stamina functions exist in UPlayerStatsComponent!
-                // StatsComp->ModifyHealth(ItemData->HealthRestoreAmount);
-                // StatsComp->ModifyStamina(ItemData->StaminaRestoreAmount);
-                bItemWasUsed = true;
+                if (ItemData->HealthRestoreAmount > 0)
+                {
+                    StatsComp->ModifyHealth(ItemData->HealthRestoreAmount);
+                    bItemWasUsed = true;
+                }
+                else if (ItemData->ManaRestoreAmount > 0)
+                {
+                    StatsComp->ModifyMana(ItemData->ManaRestoreAmount);
+                    bItemWasUsed = true;
+                }
+                else if (ItemData->StaminaRestoreAmount > 0)
+                {
+                    StatsComp->ModifyStamina(ItemData->StaminaRestoreAmount);
+                    bItemWasUsed = true;
+                }
             }
         }
         break;
@@ -317,6 +329,15 @@ float UInventoryComponent::GetRemainingCooldown(FName CooldownTag) const
 
     return 0.f; // Cooldown has finished
 }
+
+
+
+
+
+
+
+
+
 
 // -------------------------------------------------------------------
 // CRAFTING HELPER: Check if player has enough materials

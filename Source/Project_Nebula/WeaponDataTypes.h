@@ -7,9 +7,11 @@ UENUM(BlueprintType)
 enum class EWeaponArchetype : uint8
 {
     None    UMETA(DisplayName = "None"),
-    Sword   UMETA(DisplayName = "Sword (Wide/Fighting)"),
-    Dagger  UMETA(DisplayName = "Dagger (Quick/Evasive)"),
-    Spear   UMETA(DisplayName = "Spear (Long/Survival)")
+    Sword   UMETA(DisplayName = "Sword"),
+    Dagger  UMETA(DisplayName = "Dagger"),
+    Spear   UMETA(DisplayName = "Spear"),
+    Focus   UMETA(DisplayName = "Magic Focus"),
+    Shield  UMETA(DisplayName = "Shield")
 };
 
 UENUM(BlueprintType)
@@ -48,6 +50,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Data")
     UStaticMesh* VisualMesh;
 
+    // If true, equipping this forces the off-hand to be empty
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Data")
+    bool bIsTwoHanded;
+
     FWeaponInfo()
     {
         ItemName = FText::FromString("Empty");
@@ -58,5 +64,6 @@ public:
         MultiplierCondition = 1.0f;
         Description = FText::FromString("Empty");
 		VisualMesh = nullptr;
+        bIsTwoHanded = false;
     }
 };

@@ -8,9 +8,13 @@
 #include "WeaponDataTypes.h"
 #include "Public/NebulaItemTypes.h"
 #include "Components/SphereComponent.h"
+#include "NebulaProjectile.h"
 #include "Project_NebulaCharacter.generated.h"
 
 class USkillManagerComponent;
+class UPlayerStatsComponent;
+class UInventoryComponent;
+class UEquipmentComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
@@ -40,9 +44,18 @@ class AProject_NebulaCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* JumpAction;
 
-	// In your class definition:
+	// Actor Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Components, meta = (AllowPrivateAccess = "true"))
 	USkillManagerComponent* SkillManager;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Components, meta = (AllowPrivateAccess = "true"))
+	UPlayerStatsComponent* PlayerStats;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Components, meta = (AllowPrivateAccess = "true"))
+	UInventoryComponent* InventoryComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Components, meta = (AllowPrivateAccess = "true"))
+	UEquipmentComponent* EquipmentComponent;
 
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
@@ -56,13 +69,61 @@ class AProject_NebulaCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* LightAttackAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* HeavyAttackAction;
+
 	/** Dodge/Crouch Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* DodgeCrouchAction;
 
+	// --- INPUT ACTIONS ---
+	// Left bumper
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* HotbarModifierAction;
+
+	// New RB Modifier Action (Class Skills)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* ClassHotbarModifierAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SlotFaceTopAction; // Y / Triangle
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SlotFaceLeftAction; // X / Square
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SlotFaceRightAction; // B / Circle
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SlotFaceBottomAction; // A / Cross
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SlotDPadUpAction; // Up on D-Pad
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SlotDPadDownAction; // Down on D-Pad
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SlotDPadLeftAction; // Left on D-Pad
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* SlotDPadRightAction; // Right on D-Pad
+
+	// Quick Use Item slots
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* DPadUpAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* DPadDownAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* DPadLeftAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* DPadRightAction;
+
 public:
 	AProject_NebulaCharacter();
-	
 
 protected:
 
@@ -72,9 +133,6 @@ protected:
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
 
-	/** Called for light attack input */
-	void LightAttack(const FInputActionValue& Value);
-
 	/** Called for context-sensitive dodge or crouch */
 	void DodgeOrCrouch(const FInputActionValue& Value);
 
@@ -82,40 +140,6 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animations")
 	UAnimMontage* DodgeMontage;
-
-
-	// --- INPUT ACTIONS ---
-	// Left bumper
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* HotbarModifierAction; 
-
-	// New RB Modifier Action (Class Skills)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* ClassHotbarModifierAction;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* SlotFaceTopAction; // Y / Triangle
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* SlotFaceLeftAction; // X / Square
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* SlotFaceRightAction; // B / Circle
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* SlotFaceBottomAction; // A / Cross
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* SlotDPadUpAction; // Up on D-Pad
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* SlotDPadDownAction; // Down on D-Pad
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* SlotDPadLeftAction; // Left on D-Pad
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
-	UInputAction* SlotDPadRightAction; // Right on D-Pad
 
 	// Tracks which bumper is currently being held
     UPROPERTY(BlueprintReadWrite, Category = "Nebula Skills")
@@ -160,8 +184,50 @@ protected:
 	void Input_DPadRight_Tap();
 	void Input_DPadRight_Hold();
 
+	void ConsumeHealthItem();
+	void ConsumeStaminaItem();
+	void ConsumeManaItem();
+	void CycleActiveElement();
 
-			
+	// The Input Functions for Light and Heavy Attacks.
+	void Input_PrimaryAction(const FInputActionValue& Value);
+	void Input_SecondaryAction_Tap();
+	void Input_SecondaryAction_Hold();
+
+	// The Blueprint Events you will implement
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
+	void PerformPrimaryMelee();
+
+	// We removed BlueprintImplementableEvent so we can define this in C++
+	UFUNCTION(BlueprintCallable, Category = "Nebula Combat|Magic")
+	void PerformPrimaryMagic();
+
+	// The projectile to spawn for the base magic attack
+	UPROPERTY(EditDefaultsOnly, Category = "Nebula Combat|Magic")
+	TSubclassOf<ANebulaProjectile> PrimaryMagicProjectileClass;
+
+	// The animation to play when casting
+	UPROPERTY(EditDefaultsOnly, Category = "Nebula Combat|Magic")
+	UAnimMontage* PrimaryMagicMontage;
+
+	// --- ADD SECONDARY MAGIC PROPERTIES ---
+	UPROPERTY(EditDefaultsOnly, Category = "Nebula Combat|Magic")
+	TSubclassOf<class ANebulaProjectile> SecondaryMagicProjectileClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Nebula Combat|Magic")
+	UAnimMontage* SecondaryMagicMontage;
+
+	// --- UPDATE OUR COMBAT FUNCTIONS ---
+	// Make sure we have our magic execution function
+	UFUNCTION(BlueprintCallable, Category = "Nebula Combat|Magic")
+	void PerformSecondaryMagic();
+
+	// Replace PerformSecondaryOffhand with this specifically for Shield/Melee
+	UFUNCTION(BlueprintImplementableEvent, Category = "Nebula Combat")
+	void PerformSecondaryMelee();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
+	void PerformSecondaryHeavy(); // For 2H Heavy/Charge attacks
 
 protected:
 
@@ -189,7 +255,11 @@ public:
 
 	// Stores the currently active stats (Damage, Technique, etc.)
 	UPROPERTY(BlueprintReadOnly, Category = "Nebula Combat|Equipment")
-	FWeaponInfo CurrentWeaponInfo;
+	FWeaponInfo CurrentWeaponInfo; // (Right Hand or 2H)
+
+	// --- ADD THE OFFHAND TRACKER ---
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Nebula Combat|Equipment")
+	FWeaponInfo OffhandWeaponInfo; // (Left Hand)
 
 	// The invisible bubble that detects nearby interactables
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Interaction")
@@ -232,10 +302,6 @@ public:
 	// Replaces EquipWeaponFromRow
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
 	void UpdateEquipmentVisuals(EEquipmentSlot Slot, FName ItemRowName);
-
-	// Helper to unequip the current weapon
-	UFUNCTION(BlueprintCallable, Category = "Equipment")
-	void UnequipWeapon();
 
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 

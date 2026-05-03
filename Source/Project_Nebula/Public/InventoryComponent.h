@@ -27,6 +27,9 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory|State")
     TArray<FNebulaInventorySlot> InventorySlots;
 
+    // Returns a constant reference to the inventory array for safe C++ reading
+    const TArray<FNebulaInventorySlot>& GetInventorySlots() const { return InventorySlots; }
+
     UFUNCTION(BlueprintCallable, Category = "Inventory|Actions")
     bool AddItem(FName ItemID, int32 Quantity, int32& OutRemaining);
 
@@ -48,9 +51,6 @@ public:
 protected:
     virtual void BeginPlay() override;
 
-    // Helper to fetch data safely
-    FNebulaItemData* GetItemData(FName ItemID) const;
-
 public:
     // Memory bank for cooldowns: Maps the CooldownTag to its Expiration Time
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory|Cooldowns")
@@ -59,4 +59,7 @@ public:
     // A helper function we can call from UI to show a spinning cooldown timer later!
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory|Cooldowns")
     float GetRemainingCooldown(FName CooldownTag) const;
+
+    // Helper to fetch data safely
+    FNebulaItemData* GetItemData(FName ItemID) const;
 };

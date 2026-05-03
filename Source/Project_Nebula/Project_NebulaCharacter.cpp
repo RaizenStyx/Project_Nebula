@@ -11,7 +11,10 @@
 #include "EnhancedInputSubsystems.h"
 #include "PlayerStatsComponent.h"
 #include "Public/SkillManagerComponent.h"
+#include "Public/InventoryComponent.h"
+#include "Public/EquipmentComponent.h"
 #include "InputActionValue.h"
+#include "Interactable.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -100,6 +103,9 @@ AProject_NebulaCharacter::AProject_NebulaCharacter()
 	// Adding Skill Manager here. 
 	// TODO: Look into adding stat component this way too. 
 	SkillManager = CreateDefaultSubobject<USkillManagerComponent>(TEXT("SkillManager"));
+	PlayerStats = CreateDefaultSubobject<UPlayerStatsComponent>(TEXT("PlayerStats"));
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+	EquipmentComponent = CreateDefaultSubobject<UEquipmentComponent>(TEXT("EquipmentComponent"));
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -144,11 +150,22 @@ void AProject_NebulaCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Look);
 
 		// Attacking
-		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::LightAttack);
+		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_PrimaryAction);
+		
+		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_SecondaryAction_Tap);
+		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_SecondaryAction_Hold);
 
 		// Dodging & Crouching
 		EnhancedInputComponent->BindAction(DodgeCrouchAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::DodgeOrCrouch);
 		
+		// Quick Slot Inputs
+		// 1. Define the input action bindings in your SetupPlayerInputComponent
+		EnhancedInputComponent->BindAction(SlotDPadDownAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::ConsumeHealthItem);
+		EnhancedInputComponent->BindAction(SlotDPadLeftAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::ConsumeManaItem);
+		EnhancedInputComponent->BindAction(SlotDPadRightAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::ConsumeStaminaItem);
+		EnhancedInputComponent->BindAction(SlotDPadUpAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::CycleActiveElement);
+
+		// Skill Wheel Inputs
 		// The Left Bumper (Normal Skills Modifier)
 		EnhancedInputComponent->BindAction(HotbarModifierAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_LB_Started);
 		EnhancedInputComponent->BindAction(HotbarModifierAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::Input_LB_Completed);
@@ -237,12 +254,131 @@ void AProject_NebulaCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
-void AProject_NebulaCharacter::LightAttack(const FInputActionValue& Value)
+void AProject_NebulaCharacter::Input_PrimaryAction(const FInputActionValue& Value)
 {
 	if (bCrossbarIsVisible) return;
-	// Future LitRPG damage scaling and animation triggers will go here.
-	// For now, print to screen so we know the button works.
-	//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Light Attack Triggered!"));
+
+	// 1. Interaction Check (Kept from before)
+	if (IsValid(CurrentInteractable) && CurrentInteractable->Implements<UInteractable>())
+	{
+		IInteractable::Execute_Interact(CurrentInteractable, this);
+		return;
+	}
+
+	// 2. Primary Action Routing (Left Face Button)
+	if (CurrentWeaponInfo.WeaponType == EWeaponArchetype::Focus)
+	{
+		// If holding a Focus in the main hand, fire static magic
+		PerformPrimaryMagic();
+	}
+	else
+	{
+		// Otherwise, it's a melee swing (Sword, Dagger, Spear)
+		PerformPrimaryMelee();
+	}
+}
+
+void AProject_NebulaCharacter::Input_SecondaryAction_Tap()
+{
+	if (bCrossbarIsVisible) return;
+
+	// 1. Are we holding a Two-Handed weapon?
+	if (CurrentWeaponInfo.bIsTwoHanded)
+	{
+		PerformSecondaryHeavy();
+		return; // Stop here!
+	}
+
+	// 2. If not 2H, what is in the left hand?
+	if (OffhandWeaponInfo.WeaponType == EWeaponArchetype::Focus)
+	{
+		// It's a magic focus! Fire the spell via C++
+		PerformSecondaryMagic();
+	}
+	else if (OffhandWeaponInfo.WeaponType == EWeaponArchetype::Shield)
+	{
+		// It's a shield! Let Blueprint handle the blocking animation
+		PerformSecondaryMelee();
+	}
+	else
+	{
+		// Hand is empty or holding something invalid
+		GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, TEXT("Left Hand is Empty!"));
+	}
+}
+
+void AProject_NebulaCharacter::Input_SecondaryAction_Hold()
+{
+	if (bCrossbarIsVisible) return;
+	// Is the player holding a Two-Handed weapon?
+	if (CurrentWeaponInfo.bIsTwoHanded)
+	{
+		// For 2H Weapons, holding the top button does a heavy attack
+		PerformSecondaryHeavy();
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("Does not have two handed equipped, so no charge attack."));
+		// Player has 1H weapons. We use the left-hand item!
+	}
+}
+
+void AProject_NebulaCharacter::PerformPrimaryMagic()
+{
+	// 1. Play the Casting Animation
+	if (PrimaryMagicMontage)
+	{
+		PlayAnimMontage(PrimaryMagicMontage);
+	}
+
+	// 2. Spawn the Projectile
+	if (PrimaryMagicProjectileClass && GetWorld())
+	{
+		// Currently spawning slightly in front of the player's center
+		FVector SpawnLoc = GetActorLocation() + (GetActorForwardVector() * 100.f);
+		FRotator SpawnRot = GetActorRotation();
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Instigator = this; // The character is the instigator
+		SpawnParams.Owner = this;      // Good practice to set the owner for damage attribution
+
+		// Spawn it!
+		GetWorld()->SpawnActor<ANebulaProjectile>(PrimaryMagicProjectileClass, SpawnLoc, SpawnRot, SpawnParams);
+
+		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Cyan, TEXT("Primary Magic Projectile Spawned via C++!"));
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("Failed to spawn: Projectile Class not set in BP_ThirdPersonCharacter!"));
+	}
+}
+
+void AProject_NebulaCharacter::PerformSecondaryMagic()
+{
+	// 1. Play the Left-Hand Casting Animation
+	if (SecondaryMagicMontage)
+	{
+		PlayAnimMontage(SecondaryMagicMontage);
+	}
+
+	// 2. Spawn the Secondary Projectile
+	if (SecondaryMagicProjectileClass && GetWorld())
+	{
+		FVector SpawnLoc = GetActorLocation() + (GetActorForwardVector() * 100.f);
+		FRotator SpawnRot = GetActorRotation();
+
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Instigator = this;
+		SpawnParams.Owner = this;
+
+		GetWorld()->SpawnActor<ANebulaProjectile>(SecondaryMagicProjectileClass, SpawnLoc, SpawnRot, SpawnParams);
+
+		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Purple, TEXT("Secondary Magic Projectile Spawned via C++!"));
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("Failed to spawn: Secondary Projectile Class not set!"));
+	}
 }
 
 void AProject_NebulaCharacter::DodgeOrCrouch(const FInputActionValue& Value)
@@ -257,8 +393,7 @@ void AProject_NebulaCharacter::DodgeOrCrouch(const FInputActionValue& Value)
 		if (DodgeMontage && AnimInstance && !AnimInstance->Montage_IsPlaying(DodgeMontage))
 		{
 			// 1. Get Stats for Scaling
-			UPlayerStatsComponent* StatsComp = FindComponentByClass<UPlayerStatsComponent>();
-			float EffectiveAgility = StatsComp ? StatsComp->GetEffectiveStatValue(StatsComp->Agility) : 10.0f;
+			float EffectiveAgility = PlayerStats ? PlayerStats->GetEffectiveStatValue(PlayerStats->Agility) : 10.0f;
 
 			// 2. Play the Animation (Scaled by Agility)
 			float PlayRate = 1.0f + (EffectiveAgility * 0.002f);
@@ -316,6 +451,10 @@ void AProject_NebulaCharacter::UpdateEquipmentVisuals(EEquipmentSlot Slot, FName
 		{
 			CurrentWeaponInfo = FWeaponInfo(); // Clears stats to 0
 		}
+		else if (Slot == EEquipmentSlot::WeaponL)
+		{
+			OffhandWeaponInfo = FWeaponInfo(); // Clears stats to 0
+		}
 		return;
 	}
 
@@ -343,6 +482,10 @@ void AProject_NebulaCharacter::UpdateEquipmentVisuals(EEquipmentSlot Slot, FName
 			{
 				CurrentWeaponInfo = *FoundRow;
 			}
+			else if (Slot == EEquipmentSlot::WeaponL)
+			{
+				OffhandWeaponInfo = *FoundRow;
+			}
 			// --------------------
 		}
 		else
@@ -353,20 +496,11 @@ void AProject_NebulaCharacter::UpdateEquipmentVisuals(EEquipmentSlot Slot, FName
 			{
 				CurrentWeaponInfo = FWeaponInfo(); // Clears stats to 0
 			}
+			else if (Slot == EEquipmentSlot::WeaponL)
+			{
+				OffhandWeaponInfo = FWeaponInfo(); // Clears stats to 0
+			}
 		}
-	}
-}
-
-void AProject_NebulaCharacter::UnequipWeapon()
-{
-	// Clear the stats and the ID
-	CurrentWeaponInfo = FWeaponInfo(); // Resets to default struct values
-	EquippedWeaponItemID = NAME_None;
-
-	// Clear the mesh from the player's hand
-	if (EquippedWeaponMesh)
-	{
-		EquippedWeaponMesh->SetStaticMesh(nullptr);
 	}
 }
 
@@ -379,14 +513,13 @@ float AProject_NebulaCharacter::TakeDamage(float DamageAmount, FDamageEvent cons
 	}
 
 	// 2. Fetch the Stats Component
-	UPlayerStatsComponent* StatsComp = FindComponentByClass<UPlayerStatsComponent>();
-	if (StatsComp)
+	if (PlayerStats)
 	{
 		// 3. Apply Fortitude Reduction
-		float ActualDamage = StatsComp->CalculateIncomingPhysicalDamage(DamageAmount);
+		float ActualDamage = PlayerStats->CalculateIncomingPhysicalDamage(DamageAmount);
 
 		// 4. Apply the damage
-		StatsComp->ModifyHealth(-ActualDamage);
+		PlayerStats->ModifyHealth(-ActualDamage);
 
 		GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Took %f damage!"), ActualDamage));
 
@@ -562,7 +695,136 @@ void AProject_NebulaCharacter::Input_DPadRight_Hold()
 	}
 }
 
+void AProject_NebulaCharacter::ConsumeHealthItem()
+{
+	if (!InventoryComponent) return;
 
+	// We need to loop through the raw array. Assuming you have a getter like GetInventorySlots()
+	const auto& Slots = InventoryComponent->GetInventorySlots();
+
+	for (int32 i = 0; i < Slots.Num(); ++i)
+	{
+		// Skip empty slots
+		if (Slots[i].IsEmpty() || Slots[i].ItemID.IsNone()) continue;
+
+		// Fetch the item rules using your existing database fetcher
+		FNebulaItemData* ItemData = InventoryComponent->GetItemData(Slots[i].ItemID);
+		if (!ItemData) continue;
+
+		// 1. Is this a consumable that restores health?
+		if (ItemData->ItemType == ENebulaItemType::Consumable && ItemData->HealthRestoreAmount > 0)
+		{
+			// 2. Is it currently on cooldown? 
+			if (!ItemData->CooldownTag.IsNone())
+			{
+				float RemainingTime = InventoryComponent->GetRemainingCooldown(ItemData->CooldownTag);
+
+				// If it is on cooldown, we CONTINUE the loop to look for a DIFFERENT health item
+				if (RemainingTime > 0.f)
+				{
+					continue;
+				}
+			}
+
+			// 3. We found a valid health item that is NOT on cooldown! 
+			// We tell the inventory to use it, which triggers your existing heal, cooldown, and removal logic.
+			InventoryComponent->UseItem(i);
+			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, FString::Printf(TEXT("Consumed Health Item: %s"), *Slots[i].ItemID.ToString()));
+
+			// Stop scanning so we only consume ONE item.
+			break;
+		}
+	}
+}
+
+void AProject_NebulaCharacter::ConsumeStaminaItem()
+{
+	if (!InventoryComponent) return;
+
+	// We need to loop through the raw array. Assuming you have a getter like GetInventorySlots()
+	const auto& Slots = InventoryComponent->GetInventorySlots();
+
+	for (int32 i = 0; i < Slots.Num(); ++i)
+	{
+		// Skip empty slots
+		if (Slots[i].IsEmpty() || Slots[i].ItemID.IsNone()) continue;
+
+		// Fetch the item rules using your existing database fetcher
+		FNebulaItemData* ItemData = InventoryComponent->GetItemData(Slots[i].ItemID);
+		if (!ItemData) continue;
+
+		// 1. Is this a consumable that restores stamina?
+		if (ItemData->ItemType == ENebulaItemType::Consumable && ItemData->StaminaRestoreAmount > 0)
+		{
+			// 2. Is it currently on cooldown? 
+			if (!ItemData->CooldownTag.IsNone())
+			{
+				float RemainingTime = InventoryComponent->GetRemainingCooldown(ItemData->CooldownTag);
+
+				// If it is on cooldown, we CONTINUE the loop to look for a DIFFERENT health item
+				if (RemainingTime > 0.f)
+				{
+					continue;
+				}
+			}
+
+			// 3. We found a valid health item that is NOT on cooldown! 
+			// We tell the inventory to use it, which triggers your existing heal, cooldown, and removal logic.
+			InventoryComponent->UseItem(i);
+
+			// Stop scanning so we only consume ONE item.
+			break;
+		}
+	}
+}
+
+void AProject_NebulaCharacter::ConsumeManaItem()
+{
+	if (!InventoryComponent) return;
+
+	// We need to loop through the raw array. Assuming you have a getter like GetInventorySlots()
+	const auto& Slots = InventoryComponent->GetInventorySlots();
+
+	for (int32 i = 0; i < Slots.Num(); ++i)
+	{
+		// Skip empty slots
+		if (Slots[i].IsEmpty() || Slots[i].ItemID.IsNone()) continue;
+
+		// Fetch the item rules using your existing database fetcher
+		FNebulaItemData* ItemData = InventoryComponent->GetItemData(Slots[i].ItemID);
+		if (!ItemData) continue;
+
+		// 1. Is this a consumable that restores mana?
+		if (ItemData->ItemType == ENebulaItemType::Consumable && ItemData->ManaRestoreAmount > 0)
+		{
+			// 2. Is it currently on cooldown? 
+			if (!ItemData->CooldownTag.IsNone())
+			{
+				float RemainingTime = InventoryComponent->GetRemainingCooldown(ItemData->CooldownTag);
+
+				// If it is on cooldown, we CONTINUE the loop to look for a DIFFERENT health item
+				if (RemainingTime > 0.f)
+				{
+					continue;
+				}
+			}
+
+			// 3. We found a valid health item that is NOT on cooldown! 
+			// We tell the inventory to use it, which triggers your existing heal, cooldown, and removal logic.
+			InventoryComponent->UseItem(i);
+
+			// Stop scanning so we only consume ONE item.
+			break;
+		}
+	}
+}
+
+void AProject_NebulaCharacter::CycleActiveElement()
+{
+	// This is where you would implement logic to cycle through the player's active elemental affinity.
+	// For example, if you have an enum of elements (Fire, Water, Earth, Air), you could switch to the next one in the list each time this function is called.
+	// You would also want to update any relevant UI and possibly apply a temporary buff or effect based on the active element.
+}
 
 
 // Example implementation when the player interacts with the "Study Book"

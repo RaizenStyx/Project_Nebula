@@ -98,6 +98,9 @@ struct PROJECT_NEBULA_API FNebulaItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Usage")
     float StaminaRestoreAmount = 0.f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Usage")
+    float ManaRestoreAmount = 0.f;
+
     // --- Usage: Cooldowns ---
     // e.g., "Potion_Health", "Food", "Potion_Stamina". Leave as "None" for no cooldown.
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item|Usage")

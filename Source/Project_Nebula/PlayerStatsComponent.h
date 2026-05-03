@@ -221,9 +221,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Progression")
     EEssenceType PlayerEssence;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Progression")
-    ENebulaStatType StatType;
-
     UPROPERTY(BlueprintReadOnly, Category = "Nebula Stats|Progression")
 	UNebulaClassTemplate* CurrentClassTemplate;
 
