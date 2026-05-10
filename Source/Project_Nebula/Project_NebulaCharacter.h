@@ -15,6 +15,7 @@ class USkillManagerComponent;
 class UPlayerStatsComponent;
 class UInventoryComponent;
 class UEquipmentComponent;
+class UTargetLockComponent;
 class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
@@ -56,6 +57,13 @@ class AProject_NebulaCharacter : public ACharacter
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Components, meta = (AllowPrivateAccess = "true"))
 	UEquipmentComponent* EquipmentComponent;
+
+	// Lock on inputs and functionality are handled in the TargetLockComponent, but we still need a reference to it here to bind the input and call the toggle function
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Components, meta = (AllowPrivateAccess = "true"))
+	UTargetLockComponent* TargetLockComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* TargetSwitchAction;
 
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
@@ -121,6 +129,14 @@ class AProject_NebulaCharacter : public ACharacter
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* DPadRightAction;
+
+	/** Target Lock Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* TargetLockAction;
+
+	void Input_ToggleTargetLock();
+
+	void Input_SwitchTarget(const FInputActionValue& Value);
 
 public:
 	AProject_NebulaCharacter();
@@ -190,7 +206,11 @@ protected:
 	void CycleActiveElement();
 
 	// The Input Functions for Light and Heavy Attacks.
-	void Input_PrimaryAction(const FInputActionValue& Value);
+	//void Input_PrimaryAction(const FInputActionValue& Value);
+
+
+	void Input_PrimaryAction_Tap();
+	void Input_PrimaryAction_Hold();
 	void Input_SecondaryAction_Tap();
 	void Input_SecondaryAction_Hold();
 
@@ -201,6 +221,16 @@ protected:
 	// We removed BlueprintImplementableEvent so we can define this in C++
 	UFUNCTION(BlueprintCallable, Category = "Nebula Combat|Magic")
 	void PerformPrimaryMagic();
+
+	// Fire rate tracking
+	float LastPrimaryFireTime = 0.f;
+	float LastSecondaryFireTime = 0.f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat|Magic")
+	float FocusFireRate = 0.5f; // Fires twice a second
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat|Magic")
+	float FocusHeavyFireRate = 0.8f; // Slower fire rate for 2H heavy magic
 
 	// The projectile to spawn for the base magic attack
 	UPROPERTY(EditDefaultsOnly, Category = "Nebula Combat|Magic")
@@ -234,6 +264,9 @@ protected:
 	virtual void NotifyControllerChanged() override;
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	// Safely totals up all armor values and applies them to the Stats Component
+	void RecalculateArmorStats();
 
 public:
 	/** Returns CameraBoom subobject **/
@@ -298,6 +331,29 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment Visuals")
 	TObjectPtr<UStaticMeshComponent> WeaponLMesh;
 
+	// Slot to assign your DT_ArmorList in the Blueprint Editor
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	UDataTable* ArmorDataTable;
+
+	// --- Equipped Armor Tracking ---
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	FNebulaArmorData HeadArmorInfo;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	FNebulaArmorData ChestArmorInfo;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	FNebulaArmorData ArmRArmorInfo;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	FNebulaArmorData ArmLArmorInfo;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	FNebulaArmorData LegsArmorInfo;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
+	FNebulaArmorData FeetArmorInfo;
+
 	// --- The Universal Update Function ---
 	// Replaces EquipWeaponFromRow
 	UFUNCTION(BlueprintCallable, Category = "Equipment")
@@ -314,5 +370,13 @@ public:
 
 	UFUNCTION()
 	void UseStudyBook();
+
+	// The currently equipped element
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Combat|Elements")
+	EElement ActiveElement = EElement::None;
+
+	// Array of elements the player has unlocked
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Nebula Combat|Elements")
+	TArray<EElement> UnlockedElements;
 };
 

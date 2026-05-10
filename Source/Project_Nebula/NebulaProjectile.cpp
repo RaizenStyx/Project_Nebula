@@ -6,6 +6,7 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "NiagaraComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Project_NebulaCharacter.h"
 
 // Sets default values
 ANebulaProjectile::ANebulaProjectile()
@@ -38,7 +39,36 @@ ANebulaProjectile::ANebulaProjectile()
 void ANebulaProjectile::BeginPlay()
 {
 	Super::BeginPlay();
-	
+    // Check the instigator to inherit their Active Element
+    if (AProject_NebulaCharacter* Caster = Cast<AProject_NebulaCharacter>(GetInstigator()))
+    {
+        CurrentElement = Caster->ActiveElement;
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Yellow, FString::Printf(TEXT("Projectile Element: %s"), *UEnum::GetValueAsString(CurrentElement)));
+
+        // Apply the correct Niagara System dynamically
+        if (VisualEffect)
+        {
+            switch (CurrentElement)
+            {
+            case EElement::Fire:
+                if (FireNiagaraSystem) VisualEffect->SetAsset(FireNiagaraSystem);
+                break;
+            case EElement::Water:
+                if (WaterNiagaraSystem) VisualEffect->SetAsset(WaterNiagaraSystem);
+                break;
+            case EElement::Earth:
+                if (EarthNiagaraSystem) VisualEffect->SetAsset(EarthNiagaraSystem);
+                break;
+            case EElement::Air:
+                if (AirNiagaraSystem) VisualEffect->SetAsset(AirNiagaraSystem);
+                break;
+            case EElement::None:
+            default:
+                if (DefaultNiagaraSystem) VisualEffect->SetAsset(DefaultNiagaraSystem);
+                break;
+            }
+        }
+    }
 }
 
 void ANebulaProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)

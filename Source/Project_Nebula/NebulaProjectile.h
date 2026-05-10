@@ -4,11 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Public/NebulaItemTypes.h"
 #include "NebulaProjectile.generated.h"
 
 class USphereComponent;
 class UProjectileMovementComponent;
 class UNiagaraComponent; 
+class UNiagaraSystem;
 
 UCLASS()
 class PROJECT_NEBULA_API ANebulaProjectile : public AActor
@@ -46,4 +48,23 @@ public:
     // Damage amount passed in when the spell is spawned
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell Stats")
     float BaseDamage;
+
+public:
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|Element")
+    EElement CurrentElement = EElement::None;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Element Visuals")
+    UNiagaraSystem* FireNiagaraSystem;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Element Visuals")
+    UNiagaraSystem* WaterNiagaraSystem;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Element Visuals")
+    UNiagaraSystem* EarthNiagaraSystem;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Element Visuals")
+    UNiagaraSystem* AirNiagaraSystem;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Combat|Element Visuals")
+    UNiagaraSystem* DefaultNiagaraSystem;
 };

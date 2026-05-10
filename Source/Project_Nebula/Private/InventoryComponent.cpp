@@ -173,26 +173,58 @@ void UInventoryComponent::UseItem(int32 SlotIndex)
     case ENebulaItemType::Consumable:
 
         // 1. --- THE PROGRESSION ITEM INTERCEPT ---
-        if (ID == FName("Item_StudyBook"))
+        if (ID == FName("Item_StudyBook") || ItemData->GrantedElement != EElement::None)
         {
+            bool bDidLearnSomethingNew = false;
+
+			// TODO: Combine the granted element and mana study into a single 
+            // "Apply Progression Benefits" function in the player character that 
+            // takes the item data as an argument, and handles both at once. 
+            // This way we can easily add more progression benefits in the future 
+            // (like granting new skill slots, increasing max mana, etc) 
+            // without having to touch the inventory component again.
+            // Or something like that. 
+
+            // A. Element Check
+            if (ItemData->GrantedElement != EElement::None)
+            {
+                FString ElementAttempt = UEnum::GetValueAsName(ItemData->GrantedElement).ToString();
+                GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Orange, FString::Printf(TEXT("Item is trying to grant: %s"), *ElementAttempt));
+
+                if (!PlayerChar->UnlockedElements.Contains(ItemData->GrantedElement))
+                {
+                    PlayerChar->UnlockedElements.Add(ItemData->GrantedElement);
+                    PlayerChar->ActiveElement = ItemData->GrantedElement;
+
+                    bItemWasUsed = true; // Consume the element item
+                    bDidLearnSomethingNew = true;
+                    GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Cyan, TEXT("New Element Unlocked & Equipped!"));
+                }
+                else
+                {
+                    GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Yellow, TEXT("You have already mastered this element."));
+                }
+            }
+
+            // B. Mana / Magic Study Check
             if (UPlayerStatsComponent* StatsComp = PlayerChar->FindComponentByClass<UPlayerStatsComponent>())
             {
-                // Optional: Prevent them from studying it again if it's already unlocked
-                if (StatsComp->bIsManaUnlocked)
+                // Only study if mana isn't fully unlocked yet
+                if (!StatsComp->bIsManaUnlocked)
                 {
-                    GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Yellow, TEXT("You have already mastered this knowledge."));
-                    return; // Abort entirely
+                    StatsComp->StudyMagicBook(60.0f, 100.0f);
+                    bDidLearnSomethingNew = true;
+
+                    // Intentionally not setting bItemWasUsed to true here so the base book isn't destroyed
                 }
-
-                // Drain 60 mins of Awake Time, grant 100% progress (instant unlock for now)
-                StatsComp->StudyMagicBook(60.0f, 100.0f);
-
-                // Notice we in entionally DO NOT set bItemWasUsed = true here.
-                // This ensures the inventory system won't delete the book from the slot!
-
-                // We can break out of the switch early since we handled the item.
-                break;
+                else if (!bDidLearnSomethingNew && ItemData->GrantedElement == EElement::None)
+                {
+                    // Only print this if we didn't just learn an element AND the item doesn't grant one
+                    GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Yellow, TEXT("You have already mastered this knowledge."));
+                }
             }
+
+            break; // Exit the switch statement
         }
 
         // 2. Is it a Skill Orb?

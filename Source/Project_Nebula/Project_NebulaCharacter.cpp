@@ -13,6 +13,7 @@
 #include "Public/SkillManagerComponent.h"
 #include "Public/InventoryComponent.h"
 #include "Public/EquipmentComponent.h"
+#include "Public/TargetLockComponent.h"
 #include "InputActionValue.h"
 #include "Interactable.h"
 
@@ -106,6 +107,7 @@ AProject_NebulaCharacter::AProject_NebulaCharacter()
 	PlayerStats = CreateDefaultSubobject<UPlayerStatsComponent>(TEXT("PlayerStats"));
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 	EquipmentComponent = CreateDefaultSubobject<UEquipmentComponent>(TEXT("EquipmentComponent"));
+	TargetLockComponent = CreateDefaultSubobject<UTargetLockComponent>(TEXT("TargetLockComponent"));
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -150,14 +152,20 @@ void AProject_NebulaCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Look);
 
 		// Attacking
-		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_PrimaryAction);
+		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_PrimaryAction_Tap);
+		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_PrimaryAction_Hold);
 		
 		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_SecondaryAction_Tap);
 		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_SecondaryAction_Hold);
 
 		// Dodging & Crouching
 		EnhancedInputComponent->BindAction(DodgeCrouchAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::DodgeOrCrouch);
+
+		// Target Locking
+		EnhancedInputComponent->BindAction(TargetLockAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_ToggleTargetLock);
 		
+		EnhancedInputComponent->BindAction(TargetSwitchAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_SwitchTarget);
+
 		// Quick Slot Inputs
 		// 1. Define the input action bindings in your SetupPlayerInputComponent
 		EnhancedInputComponent->BindAction(SlotDPadDownAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::ConsumeHealthItem);
@@ -254,72 +262,116 @@ void AProject_NebulaCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
-void AProject_NebulaCharacter::Input_PrimaryAction(const FInputActionValue& Value)
+// --- PRIMARY TAP (Melee Combos & Single Fire) ---
+void AProject_NebulaCharacter::Input_PrimaryAction_Tap()
 {
 	if (bCrossbarIsVisible) return;
 
-	// 1. Interaction Check (Kept from before)
-	if (IsValid(CurrentInteractable) && CurrentInteractable->Implements<UInteractable>())
-	{
-		IInteractable::Execute_Interact(CurrentInteractable, this);
-		return;
-	}
-
-	// 2. Primary Action Routing (Left Face Button)
 	if (CurrentWeaponInfo.WeaponType == EWeaponArchetype::Focus)
 	{
-		// If holding a Focus in the main hand, fire static magic
-		PerformPrimaryMagic();
+		// Optional: Fire a single shot immediately on tap before the hold logic kicks in
+		if (GetWorld()->GetTimeSeconds() - LastPrimaryFireTime >= FocusFireRate)
+		{
+			PerformPrimaryMagic();
+			LastPrimaryFireTime = GetWorld()->GetTimeSeconds();
+		}
 	}
 	else
 	{
-		// Otherwise, it's a melee swing (Sword, Dagger, Spear)
+		// 1H or 2H Melee Sword Tap (Future Combos)
 		PerformPrimaryMelee();
 	}
 }
 
+// --- PRIMARY HOLD (Continuous Magic) ---
+void AProject_NebulaCharacter::Input_PrimaryAction_Hold()
+{
+	if (bCrossbarIsVisible) return;
+
+	// Both 1H and 2H focuses use the same light continuous fire
+	if (CurrentWeaponInfo.WeaponType == EWeaponArchetype::Focus)
+	{
+		if (GetWorld()->GetTimeSeconds() - LastPrimaryFireTime >= FocusFireRate)
+		{
+			PerformPrimaryMagic();
+			LastPrimaryFireTime = GetWorld()->GetTimeSeconds();
+		}
+	}
+}
+
+// --- SECONDARY TAP (Heavy Melee & Blocks) ---
 void AProject_NebulaCharacter::Input_SecondaryAction_Tap()
 {
 	if (bCrossbarIsVisible) return;
 
-	// 1. Are we holding a Two-Handed weapon?
 	if (CurrentWeaponInfo.bIsTwoHanded)
 	{
-		PerformSecondaryHeavy();
-		return; // Stop here!
-	}
-
-	// 2. If not 2H, what is in the left hand?
-	if (OffhandWeaponInfo.WeaponType == EWeaponArchetype::Focus)
-	{
-		// It's a magic focus! Fire the spell via C++
-		PerformSecondaryMagic();
-	}
-	else if (OffhandWeaponInfo.WeaponType == EWeaponArchetype::Shield)
-	{
-		// It's a shield! Let Blueprint handle the blocking animation
-		PerformSecondaryMelee();
+		if (CurrentWeaponInfo.WeaponType != EWeaponArchetype::Focus)
+		{
+			// 2H Sword Tap -> Basic Heavy
+			PerformSecondaryHeavy();
+		}
 	}
 	else
 	{
-		// Hand is empty or holding something invalid
-		GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, TEXT("Left Hand is Empty!"));
+		if (OffhandWeaponInfo.WeaponType == EWeaponArchetype::Shield)
+		{
+			// 1H Shield Tap -> Put up shield (or parry)
+			PerformSecondaryMelee();
+		}
+		else if (OffhandWeaponInfo.WeaponType == EWeaponArchetype::Focus)
+		{
+			// 1H Focus Tap -> Single Offhand Fire
+			if (GetWorld()->GetTimeSeconds() - LastSecondaryFireTime >= FocusFireRate)
+			{
+				PerformSecondaryMagic();
+				LastSecondaryFireTime = GetWorld()->GetTimeSeconds();
+			}
+		}
 	}
 }
 
+// --- SECONDARY HOLD (Charge Melee, Blocks, & Heavy Magic) ---
 void AProject_NebulaCharacter::Input_SecondaryAction_Hold()
 {
 	if (bCrossbarIsVisible) return;
-	// Is the player holding a Two-Handed weapon?
+
 	if (CurrentWeaponInfo.bIsTwoHanded)
 	{
-		// For 2H Weapons, holding the top button does a heavy attack
-		PerformSecondaryHeavy();
+		if (CurrentWeaponInfo.WeaponType == EWeaponArchetype::Focus)
+		{
+			// 2H Focus Hold -> Slower, Stronger Continuous Fire
+			if (GetWorld()->GetTimeSeconds() - LastSecondaryFireTime >= FocusHeavyFireRate)
+			{
+				// Note: You might want to create a PerformHeavyMagic() function for the stronger projectile
+				PerformSecondaryMagic();
+				LastSecondaryFireTime = GetWorld()->GetTimeSeconds();
+			}
+		}
+		else
+		{
+			// 2H Sword Hold -> Charge Attack
+			// TODO
+			//PerformSecondaryHeavyCharge(); // You'll need to define this function
+			GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Orange, TEXT("2H Sword Charge Attack Triggered! (Hold Logic Executing)"));
+		}
 	}
 	else
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("Does not have two handed equipped, so no charge attack."));
-		// Player has 1H weapons. We use the left-hand item!
+		if (OffhandWeaponInfo.WeaponType == EWeaponArchetype::Focus)
+		{
+			// 1H Focus Offhand Hold -> Continuous Fire
+			if (GetWorld()->GetTimeSeconds() - LastSecondaryFireTime >= FocusFireRate)
+			{
+				PerformSecondaryMagic();
+				LastSecondaryFireTime = GetWorld()->GetTimeSeconds();
+			}
+		}
+		else if (OffhandWeaponInfo.WeaponType == EWeaponArchetype::Shield)
+		{
+			// 1H Shield Hold -> Maintain Block
+			PerformSecondaryMelee(); // Assuming this triggers the blocking state
+		}
 	}
 }
 
@@ -425,9 +477,10 @@ void AProject_NebulaCharacter::DodgeOrCrouch(const FInputActionValue& Value)
 
 void AProject_NebulaCharacter::UpdateEquipmentVisuals(EEquipmentSlot Slot, FName ItemRowName)
 {
-	// 1. Determine WHICH mesh component we are changing based on the Enum
 	UStaticMeshComponent* TargetMeshComp = nullptr;
+	bool bIsWeapon = false; // Flag to route our data table logic
 
+	// 1. Determine mesh and route type
 	switch (Slot)
 	{
 	case EEquipmentSlot::Head: TargetMeshComp = HeadMesh; break;
@@ -436,71 +489,99 @@ void AProject_NebulaCharacter::UpdateEquipmentVisuals(EEquipmentSlot Slot, FName
 	case EEquipmentSlot::ArmL: TargetMeshComp = ArmLMesh; break;
 	case EEquipmentSlot::Legs: TargetMeshComp = LegsMesh; break;
 	case EEquipmentSlot::Feet: TargetMeshComp = FeetMesh; break;
-	case EEquipmentSlot::WeaponR: TargetMeshComp = WeaponRMesh; break;
-	case EEquipmentSlot::WeaponL: TargetMeshComp = WeaponLMesh; break;
+	case EEquipmentSlot::WeaponR: TargetMeshComp = WeaponRMesh; bIsWeapon = true; break;
+	case EEquipmentSlot::WeaponL: TargetMeshComp = WeaponLMesh; bIsWeapon = true; break;
 	case EEquipmentSlot::None: return;
 	}
 
 	if (!TargetMeshComp) return;
 
-	// 2. If we passed in "NAME_None", it means we are UNEQUIPPING. Clear the mesh!
+	// 2. UNEQUIP LOGIC: If "NAME_None" is passed in
 	if (ItemRowName.IsNone())
 	{
 		TargetMeshComp->SetStaticMesh(nullptr);
-		if (Slot == EEquipmentSlot::WeaponR)
+
+		if (bIsWeapon)
 		{
-			CurrentWeaponInfo = FWeaponInfo(); // Clears stats to 0
+			if (Slot == EEquipmentSlot::WeaponR) CurrentWeaponInfo = FWeaponInfo();
+			else if (Slot == EEquipmentSlot::WeaponL) OffhandWeaponInfo = FWeaponInfo();
 		}
-		else if (Slot == EEquipmentSlot::WeaponL)
+		else
 		{
-			OffhandWeaponInfo = FWeaponInfo(); // Clears stats to 0
+			// Clear the specific armor struct
+			switch (Slot)
+			{
+			case EEquipmentSlot::Head: HeadArmorInfo = FNebulaArmorData(); break;
+			case EEquipmentSlot::Chest: ChestArmorInfo = FNebulaArmorData(); break;
+			case EEquipmentSlot::ArmR: ArmRArmorInfo = FNebulaArmorData(); break;
+			case EEquipmentSlot::ArmL: ArmLArmorInfo = FNebulaArmorData(); break;
+			case EEquipmentSlot::Legs: LegsArmorInfo = FNebulaArmorData(); break;
+			case EEquipmentSlot::Feet: FeetArmorInfo = FNebulaArmorData(); break;
+			default: break;
+			}
+			RecalculateArmorStats(); // Re-tally the missing stats
 		}
 		return;
 	}
 
-	// 3. Look up the 3D model (and stats!) in the Database
-	if (WeaponDataTable)
+	// 3. EQUIP LOGIC - WEAPONS
+	if (bIsWeapon)
 	{
-		static const FString ContextString(TEXT("Equipment Visual Context"));
-		FWeaponInfo* FoundRow = WeaponDataTable->FindRow<FWeaponInfo>(ItemRowName, ContextString);
-
-		if (FoundRow)
+		if (WeaponDataTable)
 		{
-			// Set the visual mesh if it has one
-			if (FoundRow->VisualMesh)
+			FWeaponInfo* FoundRow = WeaponDataTable->FindRow<FWeaponInfo>(ItemRowName, TEXT("Weapon Visual Context"));
+			if (FoundRow)
 			{
 				TargetMeshComp->SetStaticMesh(FoundRow->VisualMesh);
+				if (Slot == EEquipmentSlot::WeaponR) CurrentWeaponInfo = *FoundRow;
+				else if (Slot == EEquipmentSlot::WeaponL) OffhandWeaponInfo = *FoundRow;
 			}
-			else
-			{
-				TargetMeshComp->SetStaticMesh(nullptr);
-			}
-
-			// --- THE STAT FIX ---
-			// If this is our main weapon, save the stats to the Character!
-			if (Slot == EEquipmentSlot::WeaponR)
-			{
-				CurrentWeaponInfo = *FoundRow;
-			}
-			else if (Slot == EEquipmentSlot::WeaponL)
-			{
-				OffhandWeaponInfo = *FoundRow;
-			}
-			// --------------------
 		}
-		else
+	}
+	// 4. EQUIP LOGIC - ARMOR
+	else
+	{
+		if (ArmorDataTable)
 		{
-			// Fallback: Clear everything if row isn't found
-			TargetMeshComp->SetStaticMesh(nullptr);
-			if (Slot == EEquipmentSlot::WeaponR)
+			FNebulaArmorData* FoundRow = ArmorDataTable->FindRow<FNebulaArmorData>(ItemRowName, TEXT("Armor Visual Context"));
+			if (FoundRow)
 			{
-				CurrentWeaponInfo = FWeaponInfo(); // Clears stats to 0
-			}
-			else if (Slot == EEquipmentSlot::WeaponL)
-			{
-				OffhandWeaponInfo = FWeaponInfo(); // Clears stats to 0
+				TargetMeshComp->SetStaticMesh(FoundRow->ArmorMesh);
+
+				// Save the new armor info to the correct slot
+				switch (Slot)
+				{
+				case EEquipmentSlot::Head: HeadArmorInfo = *FoundRow; break;
+				case EEquipmentSlot::Chest: ChestArmorInfo = *FoundRow; break;
+				case EEquipmentSlot::ArmR: ArmRArmorInfo = *FoundRow; break;
+				case EEquipmentSlot::ArmL: ArmLArmorInfo = *FoundRow; break;
+				case EEquipmentSlot::Legs: LegsArmorInfo = *FoundRow; break;
+				case EEquipmentSlot::Feet: FeetArmorInfo = *FoundRow; break;
+				default: break;
+				}
+				RecalculateArmorStats(); // Apply the new stats
 			}
 		}
+	}
+}
+
+void AProject_NebulaCharacter::RecalculateArmorStats()
+{
+	if (PlayerStats)
+	{
+		PlayerStats->PhysicalArmorDefense = HeadArmorInfo.BasePhysicalDefense +
+			ChestArmorInfo.BasePhysicalDefense +
+			ArmRArmorInfo.BasePhysicalDefense +
+			ArmLArmorInfo.BasePhysicalDefense +
+			LegsArmorInfo.BasePhysicalDefense +
+			FeetArmorInfo.BasePhysicalDefense;
+
+		PlayerStats->MagicalArmorDefense = HeadArmorInfo.BaseMagicalDefense +
+			ChestArmorInfo.BaseMagicalDefense +
+			ArmRArmorInfo.BaseMagicalDefense +
+			ArmLArmorInfo.BaseMagicalDefense +
+			LegsArmorInfo.BaseMagicalDefense +
+			FeetArmorInfo.BaseMagicalDefense;
 	}
 }
 
@@ -695,6 +776,25 @@ void AProject_NebulaCharacter::Input_DPadRight_Hold()
 	}
 }
 
+void AProject_NebulaCharacter::Input_ToggleTargetLock()
+{
+	if (TargetLockComponent)
+	{
+		TargetLockComponent->ToggleTargetLock();
+	}
+}
+
+void AProject_NebulaCharacter::Input_SwitchTarget(const FInputActionValue& Value)
+{
+	// The Value is a 1D float. Positive = Right, Negative = Left.
+	float SwitchDirection = Value.Get<float>();
+
+	if (TargetLockComponent)
+	{
+		TargetLockComponent->SwitchTarget(SwitchDirection);
+	}
+}
+
 void AProject_NebulaCharacter::ConsumeHealthItem()
 {
 	if (!InventoryComponent) return;
@@ -821,11 +921,44 @@ void AProject_NebulaCharacter::ConsumeManaItem()
 
 void AProject_NebulaCharacter::CycleActiveElement()
 {
-	// This is where you would implement logic to cycle through the player's active elemental affinity.
-	// For example, if you have an enum of elements (Fire, Water, Earth, Air), you could switch to the next one in the list each time this function is called.
-	// You would also want to update any relevant UI and possibly apply a temporary buff or effect based on the active element.
-}
+	// 1. Guard check: If no elements are unlocked, they can only be None
+	if (UnlockedElements.Num() == 0)
+	{
+		ActiveElement = EElement::None;
+		GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("No elements unlocked yet."));
+		return;
+	}
 
+	// 2. If current is None, switch to the first unlocked element
+	if (ActiveElement == EElement::None)
+	{
+		ActiveElement = UnlockedElements[0];
+	}
+	else
+	{
+		// 3. Find current element in the array
+		int32 CurrentIndex = UnlockedElements.Find(ActiveElement);
+
+		// 4. If it's the last element in the array, wrap around to None
+		if (CurrentIndex == UnlockedElements.Num() - 1)
+		{
+			ActiveElement = EElement::None;
+		}
+		else if (CurrentIndex != INDEX_NONE)
+		{
+			// Move to the next element
+			ActiveElement = UnlockedElements[CurrentIndex + 1];
+		}
+		else
+		{
+			// Fallback just in case something gets desynced
+			ActiveElement = EElement::None;
+		}
+	}
+
+	FString ElementName = UEnum::GetValueAsName(ActiveElement).ToString();
+	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, FString::Printf(TEXT("Switched Element to: %s"), *ElementName));
+}
 
 // Example implementation when the player interacts with the "Study Book"
 void AProject_NebulaCharacter::UseStudyBook()

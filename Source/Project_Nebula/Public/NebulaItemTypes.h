@@ -54,6 +54,19 @@ enum class ENebulaResourceType : uint8
 };
 
 // -------------------------------------------------------------------
+// THE ELEMENT ENUM
+// -------------------------------------------------------------------
+UENUM(BlueprintType)
+enum class EElement : uint8
+{
+    None    UMETA(DisplayName = "None"),
+    Fire    UMETA(DisplayName = "Fire"),
+    Water   UMETA(DisplayName = "Water"),
+    Earth   UMETA(DisplayName = "Earth"),
+    Air     UMETA(DisplayName = "Air")
+};
+
+// -------------------------------------------------------------------
 // 2. THE MASTER DATA STRUCT (For the Data Table)
 // -------------------------------------------------------------------
 USTRUCT(BlueprintType)
@@ -124,6 +137,51 @@ struct PROJECT_NEBULA_API FNebulaItemData : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Skills")
     UNebulaClassTemplate* GrantedClass;
 
+    // --- Usage: Elements ---
+    // If set, consuming this item unlocks an element for the player
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Skills")
+    EElement GrantedElement = EElement::None;
+
+};
+
+USTRUCT(BlueprintType)
+struct PROJECT_NEBULA_API FNebulaArmorData : public FTableRowBase
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor|General")
+    FText ArmorName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor|General")
+    FText Description;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor|Equipment")
+    EEquipmentSlot SlotType = EEquipmentSlot::None;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor|Stats")
+    float BasePhysicalDefense = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor|Stats")
+    float BaseMagicalDefense = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor|Visuals")
+    UStaticMesh* ArmorMesh = nullptr; // Or USkeletalMesh* depending on your rig setup
+
+    // Placeholder for future passives
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor|Passives")
+    FName GrantedPassiveID;
+
+    FNebulaArmorData()
+    {
+        ArmorName = FText::FromString("Empty");
+        Description = FText::FromString("Empty");
+        SlotType = EEquipmentSlot::None;
+        BasePhysicalDefense = 0.0f;
+        BaseMagicalDefense = 0.0f;
+        ArmorMesh = nullptr;
+        GrantedPassiveID = NAME_None;
+	}
 };
 
 // -------------------------------------------------------------------
