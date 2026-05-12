@@ -9,11 +9,11 @@ UPlayerStatsComponent::UPlayerStatsComponent()
     PrimaryComponentTick.bCanEverTick = false;
 
     // Initialize Base RPG Attributes
-    BasePhysicalProwess = 10.0f;
-    BaseSynchronization = 10.0f;
-    BaseAgility = 10.0f;
-    BaseFortitude = 10.0f;
-    BaseVigor = 10.0f;
+    BasePhysicalProwess = 0.0f;
+    BaseSynchronization = 0.0f;
+    BaseAgility = 0.0f;
+    BaseFortitude = 0.0f;
+    BaseVigor = 0.0f;
 
     // Set current to base
     PhysicalProwess = BasePhysicalProwess;

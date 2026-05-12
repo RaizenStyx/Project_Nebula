@@ -16,6 +16,8 @@
 #include "Public/TargetLockComponent.h"
 #include "InputActionValue.h"
 #include "Interactable.h"
+#include "Kismet/GameplayStatics.h"
+#include "Public/GI_Nebula.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -108,6 +110,96 @@ AProject_NebulaCharacter::AProject_NebulaCharacter()
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 	EquipmentComponent = CreateDefaultSubobject<UEquipmentComponent>(TEXT("EquipmentComponent"));
 	TargetLockComponent = CreateDefaultSubobject<UTargetLockComponent>(TEXT("TargetLockComponent"));
+}
+
+void AProject_NebulaCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 1. Get the Game Instance and cast it to your custom class
+	UGI_Nebula* GI = Cast<UGI_Nebula>(UGameplayStatics::GetGameInstance(this));
+
+	if (GI)
+	{
+		// 2. Apply Origin Stat Boosts based on the GDD
+		switch (GI->SelectedOrigin)
+		{
+		case ENebulaOrigin::Styx:
+			PlayerStats->BasePhysicalProwess += 10;
+			PlayerStats->BaseAgility += 8;
+			PlayerStats->BaseSynchronization += 5;
+			PlayerStats->BaseFortitude += 5;
+			PlayerStats->BaseVigor += 5;
+			UE_LOG(LogTemp, Warning, TEXT("Applied Styx Origin Stats"));
+			break;
+
+		case ENebulaOrigin::Kitsune:
+			PlayerStats->BasePhysicalProwess += 5;
+			PlayerStats->BaseAgility += 10;
+			PlayerStats->BaseSynchronization += 8;
+			PlayerStats->BaseFortitude += 5;
+			PlayerStats->BaseVigor += 5;
+			UE_LOG(LogTemp, Warning, TEXT("Applied Kitsune Origin Stats"));
+			break;
+
+		case ENebulaOrigin::Titan:
+			PlayerStats->BasePhysicalProwess += 5;
+			PlayerStats->BaseAgility += 5;
+			PlayerStats->BaseSynchronization += 5;
+			PlayerStats->BaseFortitude += 10;
+			PlayerStats->BaseVigor += 8;
+			UE_LOG(LogTemp, Warning, TEXT("Applied Titan Origin Stats"));
+			break;
+
+		default:
+			break;
+		}
+
+		// 3. Setup the Starting Essence (Skills/Magic)
+		// TODO: Create Essence Templates and assign here
+		// For now, only stat boosts
+		switch (GI->SelectedEssence)
+		{
+		case ENebulaEssence::Fighting:
+			// Assign Fighting Essence starting stats here.
+			// TODO: Assign essence template class here
+			PlayerStats->BasePhysicalProwess += 20;
+			PlayerStats->BaseAgility += 15;
+			PlayerStats->BaseSynchronization += 7;
+			PlayerStats->BaseFortitude += 7;
+			PlayerStats->BaseVigor += 7;
+			PlayerStats->PlayerEssence = EEssenceType::Fighting;
+			
+			// Example of assigning to skill manager when essence templates are built.
+			//SkillManager->CurrentEssence = ENebulaEssence::Fighting;
+			
+			UE_LOG(LogTemp, Warning, TEXT("Applied Fighting Ess Stats"));
+			break;
+
+		case ENebulaEssence::Evasive:
+			// Assign Evasive Essence starting stats here.
+			// TODO: Assign essence template class here
+			PlayerStats->BasePhysicalProwess += 7;
+			PlayerStats->BaseAgility += 20;
+			PlayerStats->BaseSynchronization += 15;
+			PlayerStats->BaseFortitude += 7;
+			PlayerStats->BaseVigor += 7;
+			PlayerStats->PlayerEssence = EEssenceType::Evasive;
+			UE_LOG(LogTemp, Warning, TEXT("Applied Evasive Ess Stats"));
+			break;
+		case ENebulaEssence::Survivability:
+			// Assign Survivability Essence starting stats here.
+			// TODO: Assign essence template class here
+			PlayerStats->BasePhysicalProwess += 7;
+			PlayerStats->BaseAgility += 7;
+			PlayerStats->BaseSynchronization += 7;
+			PlayerStats->BaseFortitude += 20;
+			PlayerStats->BaseVigor += 15;
+			PlayerStats->PlayerEssence = EEssenceType::Survivability;
+			UE_LOG(LogTemp, Warning, TEXT("Applied Survivability Ess Stats"));
+			break;
+		}
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////

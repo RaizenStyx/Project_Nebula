@@ -260,6 +260,7 @@ protected:
 	void PerformSecondaryHeavy(); // For 2H Heavy/Charge attacks
 
 protected:
+	virtual void BeginPlay() override;
 
 	virtual void NotifyControllerChanged() override;
 
