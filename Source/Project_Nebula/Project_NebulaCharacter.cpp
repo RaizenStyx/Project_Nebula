@@ -103,6 +103,24 @@ AProject_NebulaCharacter::AProject_NebulaCharacter()
 	FeetMesh->SetupAttachment(GetMesh(), TEXT("Socket_Feet"));
 	FeetMesh->SetCollisionProfileName(TEXT("NoCollision"));
 
+	/* Hit Box for weapon swing 
+	* TODO: Update for other weapons eventually. Mainy greatsword.
+	*/
+
+	// Create the hitbox
+	MeleeHitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeHitbox"));
+
+	// Attach it to your Weapon Mesh Component (replace 'WeaponR_Mesh' with whatever your main hand mesh component is actually named!)
+	MeleeHitbox->SetupAttachment(WeaponRMesh);
+
+	// Start with collision OFF so you don't hurt people by bumping into them
+	MeleeHitbox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	MeleeHitbox->SetCollisionResponseToAllChannels(ECR_Ignore);
+	MeleeHitbox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap); // Only overlap other Pawns/Enemies
+
+	// Bind the overlap event
+	MeleeHitbox->OnComponentBeginOverlap.AddDynamic(this, &AProject_NebulaCharacter::OnMeleeOverlap);
+
 	// Adding Skill Manager here. 
 	// TODO: Look into adding stat component this way too. 
 	SkillManager = CreateDefaultSubobject<USkillManagerComponent>(TEXT("SkillManager"));
@@ -251,7 +269,13 @@ void AProject_NebulaCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Triggered, this, &AProject_NebulaCharacter::Input_SecondaryAction_Hold);
 
 		// Dodging & Crouching
-		EnhancedInputComponent->BindAction(DodgeCrouchAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::DodgeOrCrouch);
+		//EnhancedInputComponent->BindAction(DodgeCrouchAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::DodgeOrCrouch);
+
+		// Triggered when pressed
+		EnhancedInputComponent->BindAction(DodgeCrouchAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::StartDodgeOrSlide);
+
+		// Triggered when released
+		EnhancedInputComponent->BindAction(DodgeCrouchAction, ETriggerEvent::Completed, this, &AProject_NebulaCharacter::EndSlide);
 
 		// Target Locking
 		EnhancedInputComponent->BindAction(TargetLockAction, ETriggerEvent::Started, this, &AProject_NebulaCharacter::Input_ToggleTargetLock);
@@ -467,6 +491,76 @@ void AProject_NebulaCharacter::Input_SecondaryAction_Hold()
 	}
 }
 
+void AProject_NebulaCharacter::ExecuteLightAttack()
+{
+	// 1. Only allow this specific combo if the stance is exactly right
+	if (CurrentStance != EWeaponStance::Sword1H) return;
+
+	if (bIsAttacking)
+	{
+		// If they press the button while already swinging, save the input!
+		bSaveAttack = true;
+	}
+	else
+	{
+		// Start the combo
+		bIsAttacking = true;
+		ComboStep = 1;
+		PlayAnimMontage(SwordComboMontage, 1.0f, FName("Attack1"));
+	}
+}
+
+void AProject_NebulaCharacter::ContinueCombo() // Triggered by 'SaveAttack' Notify
+{
+	if (bSaveAttack)
+	{
+		bSaveAttack = false;
+		ComboStep++;
+
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		if (AnimInstance && SwordComboMontage)
+		{
+			// Jump to the next section based on combo step
+			FName NextSection = FName(*FString::Printf(TEXT("Attack%d"), ComboStep));
+			AnimInstance->Montage_JumpToSection(NextSection, SwordComboMontage);
+		}
+	}
+}
+
+void AProject_NebulaCharacter::ResetCombo() // Triggered by 'ResetAttack' Notify
+{
+	bIsAttacking = false;
+	bSaveAttack = false;
+	ComboStep = 1;
+}
+
+void AProject_NebulaCharacter::EnableHitbox()
+{
+	MeleeHitbox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+}
+
+void AProject_NebulaCharacter::DisableHitbox()
+{
+	MeleeHitbox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AProject_NebulaCharacter::OnMeleeOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	// Ensure we didn't hit ourselves, and that the actor is actually an enemy
+	if (OtherActor && OtherActor != this)
+	{
+		// 1. Get your weapon damage from CurrentWeaponInfo or PlayerStats
+		float BaseDamage = 15.0f; // Replace with your actual stat pull
+
+		// 2. Apply the damage using Unreal's built-in framework
+		UGameplayStatics::ApplyDamage(OtherActor, BaseDamage, GetController(), this, UDamageType::StaticClass());
+
+		// Optional: Turn the hitbox off immediately after a successful hit 
+		// so you don't double-hit the exact same enemy in one swing.
+		DisableHitbox();
+	}
+}
+
 void AProject_NebulaCharacter::PerformPrimaryMagic()
 {
 	// 1. Play the Casting Animation
@@ -497,6 +591,47 @@ void AProject_NebulaCharacter::PerformPrimaryMagic()
 	}
 }
 
+void AProject_NebulaCharacter::DetermineWeaponStance()
+{
+	UEquipmentComponent* EquipComp = FindComponentByClass<UEquipmentComponent>();
+	if (!EquipComp) return;
+
+	// 1. Check if we actually have anything in the Right Hand slot
+	bool bHasMainHand = EquipComp->EquippedItems.Contains(EEquipmentSlot::WeaponR) && EquipComp->EquippedItems[EEquipmentSlot::WeaponR] != NAME_None;
+
+	if (!bHasMainHand)
+	{
+		CurrentStance = EWeaponStance::Unarmed;
+		return;
+	}
+
+	// 2. We DO have a weapon. Check the info that UpdateEquipmentVisuals just saved!
+	if (CurrentWeaponInfo.WeaponType == EWeaponArchetype::Sword)
+	{
+		// 3. Since your current design treats 1H Sword + Empty and 1H Sword + Focus as the exact same stance:
+		CurrentStance = EWeaponStance::Sword1H;
+	}
+	else if (CurrentWeaponInfo.WeaponType == EWeaponArchetype::Focus)
+	{
+		CurrentStance = EWeaponStance::Unarmed;
+	}
+	else if (CurrentWeaponInfo.WeaponType == EWeaponArchetype::Sword && OffhandWeaponInfo.WeaponType == EWeaponArchetype::Shield)
+	{
+		CurrentStance = EWeaponStance::SwordShield;
+	}
+	else if (CurrentWeaponInfo.WeaponType == EWeaponArchetype::Sword && CurrentWeaponInfo.bIsTwoHanded)
+	{
+		CurrentStance = EWeaponStance::GreatSword;
+	}
+	else
+	{
+		// Fallback for when you add other weapon types later
+		CurrentStance = EWeaponStance::Unarmed;
+	}
+
+	GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Cyan, FString::Printf(TEXT("Weapon Stance Updated to %s!"), *UEnum::GetValueAsString(CurrentStance)));
+}
+
 void AProject_NebulaCharacter::PerformSecondaryMagic()
 {
 	// 1. Play the Left-Hand Casting Animation
@@ -525,45 +660,78 @@ void AProject_NebulaCharacter::PerformSecondaryMagic()
 	}
 }
 
-void AProject_NebulaCharacter::DodgeOrCrouch(const FInputActionValue& Value)
+void AProject_NebulaCharacter::StartDodgeOrSlide(const FInputActionValue& Value)
 {
 	if (bCrossbarIsVisible) return;
-	// Check if the character is currently moving faster than a near-stop
+
 	if (GetCharacterMovement()->Velocity.SizeSquared2D() > 100.f)
 	{
 		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 
-		// Ensure we aren't already dodging so we can't spam it in the air
-		if (DodgeMontage && AnimInstance && !AnimInstance->Montage_IsPlaying(DodgeMontage))
+		if (SlideMontage && AnimInstance && !AnimInstance->Montage_IsPlaying(SlideMontage))
 		{
-			// 1. Get Stats for Scaling
+			bIsSliding = true;
+
+			OriginalGroundFriction = GetCharacterMovement()->GroundFriction;
+			OriginalBrakingDeceleration = GetCharacterMovement()->BrakingDecelerationWalking;
+
+			GetCharacterMovement()->GroundFriction = 0.0f;
+			GetCharacterMovement()->BrakingDecelerationWalking = 200.f;
+
+			// 1. Get Agility
 			float EffectiveAgility = PlayerStats ? PlayerStats->GetEffectiveStatValue(PlayerStats->Agility) : 10.0f;
 
-			// 2. Play the Animation (Scaled by Agility)
+			// 2. Play Animation
 			float PlayRate = 1.0f + (EffectiveAgility * 0.002f);
-			PlayAnimMontage(DodgeMontage, PlayRate);
+			PlayAnimMontage(SlideMontage, PlayRate);
 
-			// 3. Calculate Launch Velocity
-			// Get the normal direction the player is currently moving
+			// 3. Launch Character
 			FVector DodgeDirection = GetCharacterMovement()->Velocity.GetSafeNormal2D();
-
-			// Base force of the dodge + Agility scaling (+10 units of force per effective point)
 			float BaseDodgeForce = 1500.0f;
 			float TotalDodgeForce = BaseDodgeForce + (EffectiveAgility * 10.0f);
+			LaunchCharacter(DodgeDirection * TotalDodgeForce, true, false);
 
-			FVector LaunchVelocity = DodgeDirection * TotalDodgeForce;
+			// 4. Calculate Max Time and Set Timer!
+			float MaxSlideTime = BaseMaxSlideTime + (EffectiveAgility * AgilityTimeMultiplier);
 
-			// 4. Launch the Character!
-			// The two 'true' booleans override current XY velocity so the dash feels snappy and immediate
-			LaunchCharacter(LaunchVelocity, true, false);
+			GetWorld()->GetTimerManager().SetTimer(SlideTimerHandle, this, &AProject_NebulaCharacter::StopSliding, MaxSlideTime, false);
 
-			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, FString::Printf(TEXT("Dodge Launched! Force: %f"), TotalDodgeForce));
+			GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Cyan, FString::Printf(TEXT("Max Slide Time: %f"), MaxSlideTime));
 		}
 	}
 	else
 	{
 		if (bIsCrouched) UnCrouch();
 		else Crouch();
+	}
+}
+
+// Triggered when the player releases the button early
+void AProject_NebulaCharacter::EndSlide(const FInputActionValue& Value)
+{
+	StopSliding();
+}
+
+// The actual logic to halt the slide (called by release OR by the timer)
+void AProject_NebulaCharacter::StopSliding()
+{
+	if (bIsSliding)
+	{
+		bIsSliding = false;
+
+		// 1. Clear the timer (crucial if they released the button BEFORE the max time ran out)
+		GetWorld()->GetTimerManager().ClearTimer(SlideTimerHandle);
+
+		// 2. Restore normal physics
+		GetCharacterMovement()->GroundFriction = OriginalGroundFriction;
+		GetCharacterMovement()->BrakingDecelerationWalking = OriginalBrakingDeceleration;
+
+		// 3. Force the exit animation
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		if (AnimInstance && SlideMontage && AnimInstance->Montage_IsPlaying(SlideMontage))
+		{
+			AnimInstance->Montage_JumpToSection(FName("Exit"), SlideMontage);
+		}
 	}
 }
 

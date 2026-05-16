@@ -94,6 +94,12 @@ FName UEquipmentComponent::EquipItem(EEquipmentSlot TargetSlot, FName NewItemID)
 	// the left hand will automatically broadcast its empty status during that step!
 	OnEquipmentChanged.Broadcast(TargetSlot, NewItemID);
 
+	// --- NEW: Update the Animation Stance! ---
+	if (AProject_NebulaCharacter* PlayerChar = Cast<AProject_NebulaCharacter>(GetOwner()))
+	{
+		PlayerChar->DetermineWeaponStance();
+	}
+
 	// 4. Return the OldItem (from the primary slot) so the BP UI can swap it as usual
 	return OldItem;
 }
@@ -113,6 +119,12 @@ FName UEquipmentComponent::UnequipItem(EEquipmentSlot TargetSlot)
 	}
 
 	OnEquipmentChanged.Broadcast(TargetSlot, NAME_None);
+
+	// --- NEW: Update the Animation Stance! ---
+	if (AProject_NebulaCharacter* PlayerChar = Cast<AProject_NebulaCharacter>(GetOwner()))
+	{
+		PlayerChar->DetermineWeaponStance();
+	}
 
 	return OldItem;
 }

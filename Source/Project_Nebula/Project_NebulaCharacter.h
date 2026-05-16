@@ -8,6 +8,7 @@
 #include "WeaponDataTypes.h"
 #include "Public/NebulaItemTypes.h"
 #include "Components/SphereComponent.h"
+#include "Components/BoxComponent.h"
 #include "NebulaProjectile.h"
 #include "Project_NebulaCharacter.generated.h"
 
@@ -23,6 +24,15 @@ class UInputAction;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
+
+UENUM(BlueprintType)
+enum class EWeaponStance : uint8
+{
+	Unarmed     UMETA(DisplayName = "Unarmed"),
+	Sword1H     UMETA(DisplayName = "1H Sword (Empty/Focus)"),
+	SwordShield UMETA(DisplayName = "Sword & Shield"),
+	GreatSword UMETA(DisplayName = "2H GreatSword")
+};
 
 UCLASS(config=Game)
 class AProject_NebulaCharacter : public ACharacter
@@ -84,6 +94,10 @@ class AProject_NebulaCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* DodgeCrouchAction;
 
+	// We track the current weapon stance here so we can pass it to the animation blueprint and use it for conditional logic in our attack functions.
+	UPROPERTY(BlueprintReadWrite, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	EWeaponStance CurrentStance = EWeaponStance::Unarmed;
+
 	// --- INPUT ACTIONS ---
 	// Left bumper
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
@@ -143,19 +157,54 @@ public:
 
 protected:
 
+	// The physical box that will deal damage
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	class UBoxComponent* MeleeHitbox;
+
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
 
-	/** Called for context-sensitive dodge or crouch */
-	void DodgeOrCrouch(const FInputActionValue& Value);
-
+	/** Called for jump input **/
 	void Jump();
 
+	/** Called for context-sensitive dodge or crouch */
+	void StartDodgeOrSlide(const FInputActionValue& Value);
+	void EndSlide(const FInputActionValue& Value);
+
+	// Helper function that actually stops the slide
+	void StopSliding();
+
+	// The animation montage to play when sliding
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animations")
-	UAnimMontage* DodgeMontage;
+	UAnimMontage* SlideMontage;
+
+	// State tracking
+	bool bIsSliding = false;
+
+	// Save original movement settings for the physics slide
+	float OriginalGroundFriction;
+	float OriginalBrakingDeceleration;
+
+	// The timer handle that tracks our slide duration
+	FTimerHandle SlideTimerHandle;
+
+	// Base slide time before Agility is factored in (e.g., 0.5 seconds)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Movement|Slide")
+	float BaseMaxSlideTime = 0.5f;
+
+	// How much extra time each point of Agility grants (e.g., 0.02s per point)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Movement|Slide")
+	float AgilityTimeMultiplier = 0.02f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Animations|Combat")
+	UAnimMontage* SwordComboMontage;
+
+	bool bIsAttacking = false;
+	bool bSaveAttack = false;
+	int32 ComboStep = 1;
 
 	// Tracks which bumper is currently being held
     UPROPERTY(BlueprintReadWrite, Category = "Nebula Skills")
@@ -269,11 +318,37 @@ protected:
 	// Safely totals up all armor values and applies them to the Stats Component
 	void RecalculateArmorStats();
 
+	// The function that runs when the box hits something
+	UFUNCTION()
+	void OnMeleeOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
 public:
 	/** Returns CameraBoom subobject **/
 	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	// Start light attack combo.
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ExecuteLightAttack();
+
+	// BlueprintCallable so Anim Notifies can trigger these. Combat combos
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ContinueCombo();
+
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ResetCombo();
+
+	// Call this whenever equipment changes to update the animation stance
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void DetermineWeaponStance();
+
+	// Triggered by Animation Notifies
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void EnableHitbox();
+
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void DisableHitbox();
 
 	// -------------------------------------------------------------------
 	// WEAPON SYSTEM
