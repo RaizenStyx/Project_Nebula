@@ -49,7 +49,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell Stats")
     float BaseDamage;
 
-public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat|Element")
     EElement CurrentElement = EElement::None;
 

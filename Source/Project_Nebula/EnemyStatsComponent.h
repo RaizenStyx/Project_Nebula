@@ -6,16 +6,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEnemyHealthChangedSignature, float, CurrentHealth, float, MaxHealth);
 
- //Defines the Rock-Paper-Scissors enemy types from the Bestiary
-UENUM(BlueprintType)
-    enum class EEnemyArchetype : uint8
-{
-    None            UMETA(DisplayName = "None"),
-    Fighting        UMETA(DisplayName = "Fighting (Bruisers)"),
-    Evasive         UMETA(DisplayName = "Evasive (Skirmishers)"),
-    Survivability   UMETA(DisplayName = "Survivability (Tanks)"),
-    NullType        UMETA(DisplayName = "Null (Gimmicks)") // Placeholder for boss/neutral types
-};
+
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class PROJECT_NEBULA_API UEnemyStatsComponent : public UActorComponent
@@ -29,9 +20,6 @@ protected:
     virtual void BeginPlay() override;
 
 public:
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Enemy Stats|Attributes")
-    EEnemyArchetype Archetype;
  
     // -------------------------------------------------------------------
     // BASE STATS
@@ -43,7 +31,10 @@ public:
 
     // Directly reduces incoming physical damage
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Enemy Stats|Attributes")
-    float BaseDefense;
+    float PhysicalDefense;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Enemy Stats|Attributes")
+    float MagicalDefense;
 
     // -------------------------------------------------------------------
     // RESOURCE POOLS
@@ -60,6 +51,16 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "Nebula Enemy Stats|Resources")
     float CurrentStamina;
+
+    // -------------------------------------------------------------------
+	// POISE SYSTEM
+    // -------------------------------------------------------------------
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Enemy Stats|Resources")
+    float MaxPoise;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula Enemy Stats|Resources")
+    float CurrentPoise;
 
     // -------------------------------------------------------------------
     // DELEGATES

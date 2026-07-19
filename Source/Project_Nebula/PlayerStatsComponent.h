@@ -131,6 +131,16 @@ public:
     float PhysicalArmorDefense = 0.f;
 
     // -------------------------------------------------------------------
+    // POISE SYSTEM
+    // -------------------------------------------------------------------
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nebula Stats|Resources")
+    float MaxPoise;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Nebula  Stats|Resources")
+    float CurrentPoise;
+
+    // -------------------------------------------------------------------
     // DELEGATES
     // -------------------------------------------------------------------
     

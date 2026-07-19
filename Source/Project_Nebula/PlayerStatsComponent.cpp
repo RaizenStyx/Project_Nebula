@@ -3,6 +3,7 @@
 #include "PlayerStatsComponent.h"
 #include "Math/UnrealMathUtility.h"
 #include "Public/SkillManagerComponent.h"
+#include "Public/EnemyBase.h"
 
 UPlayerStatsComponent::UPlayerStatsComponent()
 {
@@ -32,6 +33,9 @@ UPlayerStatsComponent::UPlayerStatsComponent()
     MaxAwakeTimerMinutes = 960.0f; // 16 Hours * 60 Mins
     CurrentAwakeTimerMinutes = MaxAwakeTimerMinutes;
 
+	MaxPoise = 100.0f;
+	CurrentPoise = MaxPoise;
+
     // Initialize Progression
     MainLevel = 1;
     CurrentMainXP = 0.0f;
@@ -56,6 +60,7 @@ void UPlayerStatsComponent::BeginPlay()
     CurrentHealth = MaxHealth;
     CurrentStamina = MaxStamina;
     CurrentAwakeTimerMinutes = MaxAwakeTimerMinutes;
+	CurrentPoise = MaxPoise;
 }
 
 // -------------------------------------------------------------------

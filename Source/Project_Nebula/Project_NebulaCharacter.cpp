@@ -17,7 +17,10 @@
 #include "InputActionValue.h"
 #include "Interactable.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Public/GI_Nebula.h"
+#include "Public/PhysicalDamageType.h"
+#include "Public/EnemyBase.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -103,26 +106,6 @@ AProject_NebulaCharacter::AProject_NebulaCharacter()
 	FeetMesh->SetupAttachment(GetMesh(), TEXT("Socket_Feet"));
 	FeetMesh->SetCollisionProfileName(TEXT("NoCollision"));
 
-	/* Hit Box for weapon swing 
-	* TODO: Update for other weapons eventually. Mainy greatsword.
-	*/
-
-	// Create the hitbox
-	MeleeHitbox = CreateDefaultSubobject<UBoxComponent>(TEXT("MeleeHitbox"));
-
-	// Attach it to your Weapon Mesh Component (replace 'WeaponR_Mesh' with whatever your main hand mesh component is actually named!)
-	MeleeHitbox->SetupAttachment(WeaponRMesh);
-
-	// Start with collision OFF so you don't hurt people by bumping into them
-	MeleeHitbox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	MeleeHitbox->SetCollisionResponseToAllChannels(ECR_Ignore);
-	MeleeHitbox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap); // Only overlap other Pawns/Enemies
-
-	// Bind the overlap event
-	MeleeHitbox->OnComponentBeginOverlap.AddDynamic(this, &AProject_NebulaCharacter::OnMeleeOverlap);
-
-	// Adding Skill Manager here. 
-	// TODO: Look into adding stat component this way too. 
 	SkillManager = CreateDefaultSubobject<USkillManagerComponent>(TEXT("SkillManager"));
 	PlayerStats = CreateDefaultSubobject<UPlayerStatsComponent>(TEXT("PlayerStats"));
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
@@ -347,7 +330,7 @@ void AProject_NebulaCharacter::Move(const FInputActionValue& Value)
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
-	if (Controller != nullptr)
+	if ((Controller != nullptr) && !bIsAttacking)
 	{
 		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
@@ -534,30 +517,95 @@ void AProject_NebulaCharacter::ResetCombo() // Triggered by 'ResetAttack' Notify
 	ComboStep = 1;
 }
 
-void AProject_NebulaCharacter::EnableHitbox()
+void AProject_NebulaCharacter::PerformWeaponTrace()
 {
-	MeleeHitbox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-}
 
-void AProject_NebulaCharacter::DisableHitbox()
-{
-	MeleeHitbox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FVector StartLoc = WeaponRMesh->GetSocketLocation(FName("TraceStart"));
+	FVector EndLoc = WeaponRMesh->GetSocketLocation(FName("TraceEnd"));
+
+	TArray<FHitResult> HitResults;
+	TArray<AActor*> ActorsToIgnore;
+	ActorsToIgnore.Add(this);
+
+	UKismetSystemLibrary::SphereTraceMulti(
+		this,
+		StartLoc,
+		EndLoc,
+		20.0f,
+		UEngineTypes::ConvertToTraceType(ECC_Pawn),
+		false,
+		ActorsToIgnore,
+		EDrawDebugTrace::ForDuration,
+		HitResults,
+		true
+	);
+
+	for (const FHitResult& Hit : HitResults)
+	{
+		AActor* HitActor = Hit.GetActor();
+		if (HitActor && !HitActorsToIgnore.Contains(HitActor))
+		{
+			HitActorsToIgnore.Add(HitActor);
+
+			// 1. Establish a default archetype
+			EEnemyArchetype TargetArchetype = EEnemyArchetype::None;
+
+			// 2. Cast to your enemy class to find its specific archetype
+			// (Replace 'AEnemyBase' with whatever your actual enemy C++ class is named)
+			
+			AEnemyBase* HitEnemy = Cast<AEnemyBase>(HitActor);
+			if (HitEnemy)
+			{
+				TargetArchetype = HitEnemy->EnemyArchetype;
+			}
+
+			// 3. Calculate the outgoing damage through the Stats Component
+			float DamageToApply = 0.0f;
+			if (PlayerStats)
+			{
+				DamageToApply = PlayerStats->CalculateOutgoingPhysicalDamage(
+					CurrentWeaponInfo.BaseDamage,
+					CurrentWeaponInfo.TechniqueStyle,
+					TargetArchetype
+				);
+			}
+
+			// 4. Apply the damage using your custom Physical Damage Type
+			UGameplayStatics::ApplyDamage(
+				HitActor,
+				DamageToApply,
+				GetController(),
+				this,
+				UPhysicalDamageType::StaticClass() // The flag that tells the enemy this is physical
+			);
+		}
+	}
 }
 
 void AProject_NebulaCharacter::OnMeleeOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// Ensure we didn't hit ourselves, and that the actor is actually an enemy
+	// Ensure we hit a valid actor that isn't ourselves
 	if (OtherActor && OtherActor != this)
 	{
-		// 1. Get your weapon damage from CurrentWeaponInfo or PlayerStats
-		float BaseDamage = 15.0f; // Replace with your actual stat pull
+		// 1. Get your weapon damage from PlayerStats
+		float BaseDamage = 15.0f; // Fallback
+		if (PlayerStats)
+		{
+			//BaseDamage = PlayerStats->BaseAttack; // Pull real attack stat
+		}
 
-		// 2. Apply the damage using Unreal's built-in framework
-		UGameplayStatics::ApplyDamage(OtherActor, BaseDamage, GetController(), this, UDamageType::StaticClass());
+		// 2. THE SENDER: Apply the damage using your custom Physical tag!
+		UGameplayStatics::ApplyDamage(
+			OtherActor,
+			BaseDamage,
+			GetController(),
+			this,
+			UPhysicalDamageType::StaticClass() // <--- The magic tag we created
+		);
 
-		// Optional: Turn the hitbox off immediately after a successful hit 
-		// so you don't double-hit the exact same enemy in one swing.
-		DisableHitbox();
+		// Disable it here so it only turns off AFTER a successful enemy hit
+		//DisableMainhandHitbox();
+		//DisableOffhandHitbox();
 	}
 }
 
@@ -793,7 +841,16 @@ void AProject_NebulaCharacter::UpdateEquipmentVisuals(EEquipmentSlot Slot, FName
 			if (FoundRow)
 			{
 				TargetMeshComp->SetStaticMesh(FoundRow->VisualMesh);
-				if (Slot == EEquipmentSlot::WeaponR) CurrentWeaponInfo = *FoundRow;
+				if (Slot == EEquipmentSlot::WeaponR)
+				{
+					CurrentWeaponInfo = *FoundRow;
+					// Will need to adjust the hit boxes based on weapon type/size.
+					// 
+					if (CurrentWeaponInfo.bIsTwoHanded)
+					{
+						//MainhandHitbox->SetBoxExtent(FVector(10.f, 2.5f, 125.f));
+					}
+				}
 				else if (Slot == EEquipmentSlot::WeaponL) OffhandWeaponInfo = *FoundRow;
 			}
 		}
@@ -909,7 +966,7 @@ void AProject_NebulaCharacter::Input_RB_Completed()
 
 void AProject_NebulaCharacter::Input_FaceTop_Tap()
 {
-	// We pass in CurrentHotbarCategory, which dynamically routes to the correct map!
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Top, false);
@@ -918,6 +975,7 @@ void AProject_NebulaCharacter::Input_FaceTop_Tap()
 
 void AProject_NebulaCharacter::Input_FaceTop_Hold()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Top, true);
@@ -926,6 +984,7 @@ void AProject_NebulaCharacter::Input_FaceTop_Hold()
 
 void AProject_NebulaCharacter::Input_FaceBottom_Tap()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Bottom, false);
@@ -934,6 +993,7 @@ void AProject_NebulaCharacter::Input_FaceBottom_Tap()
 
 void AProject_NebulaCharacter::Input_FaceBottom_Hold()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Bottom, true);
@@ -942,6 +1002,7 @@ void AProject_NebulaCharacter::Input_FaceBottom_Hold()
 
 void AProject_NebulaCharacter::Input_FaceLeft_Tap()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Left, false);
@@ -958,6 +1019,7 @@ void AProject_NebulaCharacter::Input_FaceLeft_Hold()
 
 void AProject_NebulaCharacter::Input_FaceRight_Tap()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Right, false);
@@ -966,6 +1028,7 @@ void AProject_NebulaCharacter::Input_FaceRight_Tap()
 
 void AProject_NebulaCharacter::Input_FaceRight_Hold()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::Face_Right, true);
@@ -974,6 +1037,7 @@ void AProject_NebulaCharacter::Input_FaceRight_Hold()
 
 void AProject_NebulaCharacter::Input_DPadUp_Tap()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Up, false);
@@ -982,6 +1046,7 @@ void AProject_NebulaCharacter::Input_DPadUp_Tap()
 
 void AProject_NebulaCharacter::Input_DPadUp_Hold()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Up, true);
@@ -990,6 +1055,7 @@ void AProject_NebulaCharacter::Input_DPadUp_Hold()
 
 void AProject_NebulaCharacter::Input_DPadDown_Tap()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Down, false);
@@ -998,6 +1064,7 @@ void AProject_NebulaCharacter::Input_DPadDown_Tap()
 
 void AProject_NebulaCharacter::Input_DPadDown_Hold()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Down, true);
@@ -1006,6 +1073,7 @@ void AProject_NebulaCharacter::Input_DPadDown_Hold()
 
 void AProject_NebulaCharacter::Input_DPadLeft_Tap()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Left, false);
@@ -1014,6 +1082,7 @@ void AProject_NebulaCharacter::Input_DPadLeft_Tap()
 
 void AProject_NebulaCharacter::Input_DPadLeft_Hold()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Left, true);
@@ -1022,6 +1091,7 @@ void AProject_NebulaCharacter::Input_DPadLeft_Hold()
 
 void AProject_NebulaCharacter::Input_DPadRight_Tap()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Right, false);
@@ -1030,6 +1100,7 @@ void AProject_NebulaCharacter::Input_DPadRight_Tap()
 
 void AProject_NebulaCharacter::Input_DPadRight_Hold()
 {
+	if (!bCrossbarIsVisible) return;
 	if (SkillManager)
 	{
 		SkillManager->ExecuteSkillInSlot(CurrentHotbarCategory, ENebulaSkillSlot::DPad_Right, true);
@@ -1038,6 +1109,7 @@ void AProject_NebulaCharacter::Input_DPadRight_Hold()
 
 void AProject_NebulaCharacter::Input_ToggleTargetLock()
 {
+	if (!bCrossbarIsVisible) return;
 	if (TargetLockComponent)
 	{
 		TargetLockComponent->ToggleTargetLock();
@@ -1181,6 +1253,7 @@ void AProject_NebulaCharacter::ConsumeManaItem()
 
 void AProject_NebulaCharacter::CycleActiveElement()
 {
+	if (bCrossbarIsVisible) return;
 	// 1. Guard check: If no elements are unlocked, they can only be None
 	if (UnlockedElements.Num() == 0)
 	{

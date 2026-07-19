@@ -4,6 +4,7 @@
 #include "EquipmentComponent.h"
 #include "InventoryComponent.h"
 #include "../Project_NebulaCharacter.h"
+#include "Components/BoxComponent.h"
 
 // Sets default values for this component's properties
 UEquipmentComponent::UEquipmentComponent()

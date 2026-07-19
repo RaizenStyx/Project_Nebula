@@ -94,10 +94,6 @@ class AProject_NebulaCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* DodgeCrouchAction;
 
-	// We track the current weapon stance here so we can pass it to the animation blueprint and use it for conditional logic in our attack functions.
-	UPROPERTY(BlueprintReadWrite, Category = "Combat", meta = (AllowPrivateAccess = "true"))
-	EWeaponStance CurrentStance = EWeaponStance::Unarmed;
-
 	// --- INPUT ACTIONS ---
 	// Left bumper
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
@@ -158,8 +154,11 @@ public:
 protected:
 
 	// The physical box that will deal damage
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
-	class UBoxComponent* MeleeHitbox;
+	//UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	//class UBoxComponent* MainhandHitbox;
+
+	//UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	//class UBoxComponent* OffhandHitbox;
 
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
@@ -202,7 +201,6 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Animations|Combat")
 	UAnimMontage* SwordComboMontage;
 
-	bool bIsAttacking = false;
 	bool bSaveAttack = false;
 	int32 ComboStep = 1;
 
@@ -308,6 +306,13 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Combat")
 	void PerformSecondaryHeavy(); // For 2H Heavy/Charge attacks
 
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void PerformWeaponTrace();
+
+	// We still need this to make sure we don't hit the same enemy twice in one swing!
+	UPROPERTY()
+	TArray<AActor*> HitActorsToIgnore;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -339,24 +344,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void ResetCombo();
 
+	UPROPERTY(BlueprintReadWrite, Category = "Combat")
+	bool bIsAttacking = false;
+
 	// Call this whenever equipment changes to update the animation stance
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void DetermineWeaponStance();
 
-	// Triggered by Animation Notifies
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void EnableHitbox();
-
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void DisableHitbox();
+	// We track the current weapon stance here so we can pass it to the animation blueprint and use it for conditional logic in our attack functions.
+	UPROPERTY(BlueprintReadOnly, Category = "Combat")
+	EWeaponStance CurrentStance = EWeaponStance::Unarmed;
 
 	// -------------------------------------------------------------------
 	// WEAPON SYSTEM
 	// -------------------------------------------------------------------
-
-	// The physical 3D model attached to your hand
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nebula Combat|Equipment")
-	UStaticMeshComponent* EquippedWeaponMesh;
 
 	// Slot to slot in your DT_WeaponList in the Blueprint Editor
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nebula Combat|Equipment")

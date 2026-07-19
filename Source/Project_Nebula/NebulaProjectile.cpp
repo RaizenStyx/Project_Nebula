@@ -7,6 +7,8 @@
 #include "NiagaraComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Project_NebulaCharacter.h"
+#include "EnemyBase.h"
+#include "MagicalDamageType.h"
 
 // Sets default values
 ANebulaProjectile::ANebulaProjectile()
@@ -60,7 +62,14 @@ void ANebulaProjectile::BeginPlay()
                 if (EarthNiagaraSystem) VisualEffect->SetAsset(EarthNiagaraSystem);
                 break;
             case EElement::Air:
-                if (AirNiagaraSystem) VisualEffect->SetAsset(AirNiagaraSystem);
+                if (AirNiagaraSystem)
+                {
+                    VisualEffect->SetAsset(AirNiagaraSystem);
+                    // Set Color A to White
+                    VisualEffect->SetVariableLinearColor(FName("ColorA"), FLinearColor::White);
+                    // Set Color B to Light Blue (RGB values: R=0.2, G=0.6, B=1.0, Alpha=1.0)
+                    VisualEffect->SetVariableLinearColor(FName("ColorB"), FLinearColor(0.2f, 0.6f, 1.0f, 1.0f));
+                }
                 break;
             case EElement::None:
             default:
@@ -73,13 +82,28 @@ void ANebulaProjectile::BeginPlay()
 
 void ANebulaProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-    // Ensure we don't damage ourselves
+    // Ensure we don't damage ourselves or the player who cast it
     if ((OtherActor != nullptr) && (OtherActor != this) && (OtherActor != GetInstigator()))
     {
-        // Apply damage using UE's built-in pipeline, which triggers TakeDamage() on the victim
-        UGameplayStatics::ApplyDamage(OtherActor, BaseDamage, GetInstigatorController(), this, UDamageType::StaticClass());
+        // 1. Try to cast the actor we hit to base enemy class
+        AEnemyBase* HitEnemy = Cast<AEnemyBase>(OtherActor);
 
-        // Destroy projectile on impact
+        if (HitEnemy)
+        {
+            // 2. Apply Magical Damage using your specific damage type tag
+            UGameplayStatics::ApplyDamage(
+                HitEnemy,
+                BaseDamage, 
+                GetInstigatorController(),
+                this,
+                UMagicalDamageType::StaticClass() // <--- Magical damage tag
+            );
+
+            // 3. Apply the elemental status effect
+            HitEnemy->ApplyStatusEffect(CurrentElement);
+        }
+
+        // 4. Destroy projectile on impact, whether it hit an enemy, a wall, or the floor
         Destroy();
     }
 }
